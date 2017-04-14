@@ -1,0 +1,7 @@
+[package]
+name = "retrosheet"
+version = "0.1.0"
+authors = ["Eugene Bulkin <eugene.bulkin2@gmail.com>"]
+
+[dependencies]
+nom = "2.2.1"
