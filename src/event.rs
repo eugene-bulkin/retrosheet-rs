@@ -1,6 +1,6 @@
 pub type PlayerId = String;
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct Player {
     pub id: PlayerId,
     pub name: String,
@@ -9,7 +9,7 @@ pub struct Player {
     pub fielding_pos: u8,
 }
 
-#[derive(Copy, Clone, Debug, PartialEq)]
+#[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
 pub enum Team {
     Visiting = 0,
     Home = 1,

@@ -72,7 +72,7 @@ mod tests {
 
     use nom::IResult::*;
 
-    use ::event::{Event, Info, Team};
+    use ::event::{Event, Team};
 
     #[test]
     fn test_version() {
