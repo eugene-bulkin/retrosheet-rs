@@ -20,6 +20,23 @@ pub enum Error {
     GameProcessingError(GameError),
 }
 
+impl ::std::fmt::Display for Error {
+    fn fmt(&self, f: &mut ::std::fmt::Formatter) -> ::std::fmt::Result {
+        match *self {
+            Error::UnexpectedGameId { ref current_game_id } => {
+                write!(f, "game_id event was received before finishing game '{}'", current_game_id)
+            }
+            Error::NoGame(ref evt) => {
+                write!(f, "event {:?} was received before a game was registered", evt)
+            }
+            Error::BytesRemaining(ref bytes) => {
+                write!(f, "bytes remaining after parsing completed: {:?}", bytes)
+            }
+            Error::GameProcessingError(ref e) => write!(f, "{}", e)
+        }
+    }
+}
+
 #[derive(Clone, Debug, PartialEq)]
 enum State {
     Empty,

@@ -13,6 +13,19 @@ pub enum Error {
     Unimplemented,
 }
 
+impl ::std::fmt::Display for Error {
+    fn fmt(&self, f: &mut ::std::fmt::Formatter) -> ::std::fmt::Result {
+        match *self {
+            Error::InvalidEvent(ref state, ref event) => {
+                write!(f, "the event {:?} is not valid in the {:?} state", event, state)
+            }
+            Error::Unimplemented => {
+                write!(f, "the requested command is not yet implemented")
+            }
+        }
+    }
+}
+
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
 /// The parsing state of the game.
 pub enum State {
