@@ -5,28 +5,41 @@ use std::collections::{HashMap, HashSet};
 use ::event::{Event, Info, Player};
 
 #[derive(Clone, Debug, PartialEq)]
+/// An error that occurs while processing a game.
 pub enum Error {
+    /// The event provided is not valid in the current state.
     InvalidEvent(State, Event),
+    /// A portion of processing is not yet implemented.
     Unimplemented,
 }
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
+/// The parsing state of the game.
 pub enum State {
+    /// Parsing info events.
     Info,
+    /// Parsing start events.
     Starters,
+    /// Parsing plays.
     Plays,
+    /// Parsing end-of-game data.
     Data,
 }
 
 #[derive(Clone, Debug, PartialEq)]
+/// An MLB game.
 pub struct Game {
+    /// The game id.
     pub id: String,
+    /// Metadata information about the game.
     pub info: HashMap<Info, String>,
+    /// The players that started the game.
     pub starters: HashSet<Player>,
     state: State,
 }
 
 impl Game {
+    /// Instantiate a new game object in the initial state.
     pub fn new<S: Into<String>>(id: S) -> Game {
         Game {
             id: id.into(),
@@ -70,6 +83,7 @@ impl Game {
         }
     }
 
+    /// Process an event in the context of the game.
     pub fn process_event(&mut self, event: Event) -> Result<(), Error> {
         match self.state {
             State::Info => self.process_info_event(event),
