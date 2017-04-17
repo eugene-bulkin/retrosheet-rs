@@ -113,7 +113,7 @@ mod tests {
     use std::collections::HashSet;
     use std::iter::FromIterator;
 
-    use ::event::{Event, Info, Player, Team};
+    use ::event::{Event, Info, Player, PlayDescription, PlayEvent, Team};
 
     #[test]
     fn test_process_info() {
@@ -163,7 +163,18 @@ mod tests {
         let evt = Event::Info { key: Info::HomeTeam, data: "bar".into() };
         assert_eq!(Err(Error::InvalidEvent(State::Starters, evt.clone())), game.process_event(evt.clone()));
 
-        assert_eq!(Err(Error::Unimplemented), game.process_event(Event::Play { inning: 2 }));
+        assert_eq!(Err(Error::Unimplemented), game.process_event(Event::Play {
+            inning: 2,
+            team: Team::Visiting,
+            player: "foo".into(),
+            count: None,
+            pitches: vec![],
+            event: PlayEvent {
+                description: PlayDescription::Balk,
+                modifiers: vec![],
+                advances: vec![],
+            }
+        }));
         assert_eq!(State::Plays, game.state);
     }
 }
