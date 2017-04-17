@@ -259,8 +259,7 @@ named!(info (&[u8]) -> Event, do_parse!(
     })
 ));
 
-named!(start (&[u8]) -> Event, do_parse!(
-    terminated!(tag!("start"), tag!(",")) >>
+named!(player_entry (&[u8]) -> Player, do_parse!(
     id: map!(map_res!(take_until_and_consume!(","), str::from_utf8), String::from) >>
     tag!("\"") >>
     name: map!(map_res!(take_until_and_consume!("\""), str::from_utf8), String::from) >>
@@ -269,13 +268,25 @@ named!(start (&[u8]) -> Event, do_parse!(
     batting_pos: bytes_to_u8 >>
     tag!(",") >>
     fielding_pos: bytes_to_u8 >>
-    (Event::Start { player: Player {
+    (Player {
         id: id,
         name: name,
         team: team,
         batting_pos: batting_pos,
         fielding_pos: fielding_pos,
-    }})
+    })
+));
+
+named!(start (&[u8]) -> Event, do_parse!(
+    terminated!(tag!("start"), tag!(",")) >>
+    player: player_entry >>
+    (Event::Start { player: player })
+));
+
+named!(sub (&[u8]) -> Event, do_parse!(
+    terminated!(tag!("sub"), tag!(",")) >>
+    player: player_entry >>
+    (Event::Sub { player: player })
 ));
 
 named!(game_id (&[u8]) -> Event, do_parse!(
@@ -292,7 +303,7 @@ named!(version (&[u8]) -> Event, do_parse!(
 ));
 
 named!(pub event (&[u8]) -> Event, do_parse!(
-    event: alt_complete!(game_id | version | play | info | start) >>
+    event: alt_complete!(game_id | version | play | info | start | sub) >>
     alt!(eof!() | tag!("\n")) >>
     (event)
 ));
@@ -320,7 +331,7 @@ mod tests {
     }
 
     #[test]
-    fn test_start() {
+    fn test_start_sub() {
         let player1 = Player {
             id: "fred103".into(),
             name: "fred".into(),
@@ -335,10 +346,15 @@ mod tests {
             batting_pos: 3,
             fielding_pos: 9,
         };
-        assert_eq!(Done(&[][..], Event::Start { player: player1 }), start(b"start,fred103,\"fred\",1,7,6"));
-        assert_eq!(Done(&[][..], Event::Start { player: player2 }), start(b"start,bob202,\"bob\",0,3,9"));
+        assert_eq!(Done(&[][..], Event::Start { player: player1.clone() }), start(b"start,fred103,\"fred\",1,7,6"));
+        assert_eq!(Done(&[][..], Event::Start { player: player2.clone() }), start(b"start,bob202,\"bob\",0,3,9"));
         assert!(start(b"start,bob202,\"bob\",2,3,9").is_err());
         assert!(start(b"start,bob202").is_err());
+
+        assert_eq!(Done(&[][..], Event::Sub { player: player1.clone() }), sub(b"sub,fred103,\"fred\",1,7,6"));
+        assert_eq!(Done(&[][..], Event::Sub { player: player2.clone() }), sub(b"sub,bob202,\"bob\",0,3,9"));
+        assert!(sub(b"sub,bob202,\"bob\",2,3,9").is_err());
+        assert!(sub(b"sub,bob202").is_err());
     }
 
     #[test]
