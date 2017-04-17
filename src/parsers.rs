@@ -1,4 +1,4 @@
-use nom::{alphanumeric, digit, not_line_ending};
+use nom::{alpha, alphanumeric, digit, not_line_ending};
 
 use std::str;
 
@@ -292,6 +292,18 @@ named!(sub (&[u8]) -> Event, do_parse!(
     (Event::Sub { player: player })
 ));
 
+named!(data (&[u8]) -> Event, do_parse!(
+    terminated!(tag!("data"), tag!(",")) >>
+    data_type: terminated!(map!(alpha, Into::into), tag!(",")) >>
+    player: map!(map_res!(take_until_and_consume!(","), str::from_utf8), String::from) >>
+    value: map!(map_res!(not_line_ending, str::from_utf8), String::from) >>
+    (Event::Data {
+        data_type: data_type,
+        player: player,
+        value: value,
+    })
+));
+
 named!(game_id (&[u8]) -> Event, do_parse!(
     tag!("id") >>
     tag!(",") >>
@@ -306,7 +318,7 @@ named!(version (&[u8]) -> Event, do_parse!(
 ));
 
 named!(pub event (&[u8]) -> Event, do_parse!(
-    event: alt_complete!(game_id | version | play | info | start | sub) >>
+    event: alt_complete!(game_id | version | play | info | start | sub | data) >>
     alt!(eof!() | tag!("\n")) >>
     (event)
 ));
@@ -317,8 +329,8 @@ mod tests {
 
     use nom::IResult::*;
 
-    use ::event::{Advance, AdvanceParameter, Base, Event, FieldParameter, HitType, HitLocation,
-                  Pitch, PlayEvent, PlayDescription, PlayModifier, Team};
+    use ::event::{Advance, AdvanceParameter, Base, DataEventType, Event, FieldParameter, HitType,
+                  HitLocation, Pitch, PlayEvent, PlayDescription, PlayModifier, Team};
 
     #[test]
     fn test_version() {
@@ -331,6 +343,15 @@ mod tests {
         assert_eq!((&[][..], Event::GameId { id: "CHN201604110".into() }), game_id(b"id,CHN201604110").unwrap());
         assert!(game_id(b"asdlfk,3,5").is_err());
         assert!(game_id(b"id,3455").is_incomplete());
+    }
+
+    #[test]
+    fn test_data() {
+        assert_eq!(Done(&[][..], Event::Data {
+            data_type: DataEventType::EarnedRuns,
+            player: "showe001".into(),
+            value: "2".into(),
+        }), data(b"data,er,showe001,2"));
     }
 
     #[test]

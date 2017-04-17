@@ -597,6 +597,22 @@ pub struct PlayEvent {
     pub advances: Vec<Advance>,
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+/// A data record type. Currently only one (earned run) is supported.
+pub enum DataEventType {
+    /// How many earned runs a pitcher incurred.
+    EarnedRuns
+}
+
+impl<'a> From<&'a [u8]> for DataEventType {
+    fn from(bytes: &'a [u8]) -> DataEventType {
+        match bytes {
+            b"er" => DataEventType::EarnedRuns,
+            _ => unreachable!(),
+        }
+    }
+}
+
 #[derive(Clone, Debug, PartialEq)]
 /// A record describing something about an MLB game.
 pub enum Event {
@@ -644,4 +660,14 @@ pub enum Event {
         /// A description of the events of the play.
         event: PlayEvent,
     },
+    /// A record describing some data about the game. Currently there's only earned run information
+    /// but in the future more records may exist.
+    Data {
+        /// The data record type.
+        data_type: DataEventType,
+        /// The player to which the record applies.
+        player: PlayerId,
+        /// The actual data value.
+        value: String,
+    }
 }
