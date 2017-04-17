@@ -319,7 +319,7 @@ named!(version (&[u8]) -> Event, do_parse!(
 
 named!(pub event (&[u8]) -> Event, do_parse!(
     event: alt_complete!(game_id | version | play | info | start | sub | data) >>
-    alt!(eof!() | tag!("\n")) >>
+    alt!(eof!() | tag!("\n") | tag!("\r\n")) >>
     (event)
 ));
 
