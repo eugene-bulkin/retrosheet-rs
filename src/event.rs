@@ -626,7 +626,7 @@ pub enum Event {
     Play {
         /// The inning, an integer starting at 1
         inning: u8,
-        /// The team for which the play is happening.
+        /// The team which is batting.
         team: Team,
         /// The player at the plate.
         player: PlayerId,
