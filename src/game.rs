@@ -2,13 +2,17 @@ pub use self::{Error as GameError, State as GameState};
 
 use std::collections::{HashMap, HashSet};
 
-use ::event::{Event, Info, Player};
+use ::event::{Event, Info, Player, Team};
 
 #[derive(Clone, Debug, PartialEq)]
 /// An error that occurs while processing a game.
 pub enum Error {
     /// The event provided is not valid in the current state.
     InvalidEvent(State, Event),
+    /// The event before a substitution should always be a play, not something else.
+    InvalidEventBeforeSub(Event),
+    /// The event before a substitution should always be a play.
+    NoEventBeforeSub,
     /// A portion of processing is not yet implemented.
     Unimplemented,
 }
@@ -18,12 +22,27 @@ impl ::std::fmt::Display for Error {
         match *self {
             Error::InvalidEvent(ref state, ref event) => {
                 write!(f, "the event {:?} is not valid in the {:?} state", event, state)
-            }
+            },
+            Error::InvalidEventBeforeSub(ref event) => {
+                write!(f, "substitutions must be preceded by a play event; got {:?}", event)
+            },
+            Error::NoEventBeforeSub => {
+                write!(f, "substitutions must be preceded by a play event")
+            },
             Error::Unimplemented => {
                 write!(f, "the requested command is not yet implemented")
             }
         }
     }
+}
+
+#[derive(Clone, Debug, PartialEq)]
+/// A substitution. Denotes what inning and batting team (i.e. bottom or top of inning) and which
+/// player was subbed in.
+pub struct Substitution {
+    inning: u8,
+    batting_team: Team,
+    player: Player,
 }
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
@@ -48,6 +67,11 @@ pub struct Game {
     pub info: HashMap<Info, String>,
     /// The players that started the game.
     pub starters: HashSet<Player>,
+    /// The sequence of plays that occurred in the game.
+    pub plays: Vec<Event>,
+    /// The set of substitutions that happened during the game. This can be used to construct a full
+    /// list of who was playing during what parts of the game.
+    pub substitutions: Vec<Substitution>,
     state: State,
 }
 
@@ -59,6 +83,8 @@ impl Game {
             info: HashMap::new(),
             state: State::Info,
             starters: HashSet::new(),
+            plays: vec![],
+            substitutions: vec![],
         }
     }
 
@@ -96,11 +122,45 @@ impl Game {
         }
     }
 
+    fn process_play_event(&mut self, event: Event) -> Result<(), Error> {
+        match event {
+            Event::Play { .. } => {
+                self.plays.push(event);
+                Ok(())
+            },
+            Event::Sub { player } => {
+                // We actually get rid of the last play, because it will always be a NoPlay without
+                // any pitch count. If not, it's an error and parsing failed anyway.
+                let last_evt = self.plays.pop();
+                match last_evt {
+                    Some(event) => {
+                        match event {
+                            Event::Play { inning, team, .. } => {
+                                self.substitutions.push(Substitution {
+                                    inning: inning,
+                                    batting_team: team,
+                                    player: player
+                                });
+                                Ok(())
+                            },
+                            _ => Err(Error::InvalidEventBeforeSub(event))
+                        }
+                    },
+                    None => Err(Error::NoEventBeforeSub),
+                }
+            },
+            _ => {
+                Err(Error::InvalidEvent(self.state, event.clone()))
+            }
+        }
+    }
+
     /// Process an event in the context of the game.
     pub fn process_event(&mut self, event: Event) -> Result<(), Error> {
         match self.state {
             State::Info => self.process_info_event(event),
             State::Starters => self.process_starter_event(event),
+            State::Plays => self.process_play_event(event),
             _ => Err(Error::Unimplemented),
         }
     }
@@ -163,7 +223,7 @@ mod tests {
         let evt = Event::Info { key: Info::HomeTeam, data: "bar".into() };
         assert_eq!(Err(Error::InvalidEvent(State::Starters, evt.clone())), game.process_event(evt.clone()));
 
-        assert_eq!(Err(Error::Unimplemented), game.process_event(Event::Play {
+        assert_eq!(Ok(()), game.process_event(Event::Play {
             inning: 2,
             team: Team::Visiting,
             player: "foo".into(),
