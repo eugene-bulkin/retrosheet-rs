@@ -201,6 +201,9 @@ pub enum PlayDescription {
     /// A strikeout. May or may not be accompanied by an additional event, for example if there was
     /// a dropped third strike.
     Strikeout(Option<Box<PlayDescription>>),
+    /// A walk. May or may not be accompanied by an additional event, describing potential base
+    /// running events.
+    Walk(Option<Box<PlayDescription>>),
     /// A passed ball.
     PassedBall,
     /// A wild pitch.
@@ -211,6 +214,14 @@ pub enum PlayDescription {
     Double(Vec<Fielder>),
     /// A triple (optionally) handled by a fielder or fielders.
     Triple(Vec<Fielder>),
+    /// A home run.
+    HomeRun,
+    /// An inside-the-park home run, with relevant fielder informatino.
+    InsideTheParkHomeRun(Vec<Fielder>),
+    /// No play was made. Used when a substitution immediately follows.
+    NoPlay,
+    /// A stolen base, with the base information.
+    StolenBase(Base),
     // TODO: Finish all of these!
 }
 
@@ -457,6 +468,8 @@ impl<'a> From<&'a [u8]> for HitLocation {
 pub enum PlayModifier {
     /// A hit of some kind, possibly with a specific location.
     HitWithLocation(HitType, Option<HitLocation>),
+    /// Just a hit location (used wit home runs).
+    HitLocation(HitLocation),
     /// appeal play
     AppealPlay,
     /// bunt grounded into double play

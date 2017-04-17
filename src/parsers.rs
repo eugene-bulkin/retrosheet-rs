@@ -55,15 +55,38 @@ named!(play_desc_strikeout (&[u8]) -> PlayDescription, do_parse!(
     (PlayDescription::Strikeout(additional))
 ));
 
+named!(play_desc_walk (&[u8]) -> PlayDescription, do_parse!(
+    tag!("W") >>
+    additional: opt!(complete!(preceded!(opt!(tag!("+")),
+                                         map!(play_description, Box::new)))) >>
+    (PlayDescription::Walk(additional))
+));
+
+named!(play_desc_hr (&[u8]) -> PlayDescription, do_parse!(
+    alt_complete!(tag!("HR") | tag!("H")) >>
+    fielders: many0!(complete!(fielder)) >>
+    ({
+        if fielders.is_empty() {
+            PlayDescription::HomeRun
+        } else {
+            PlayDescription::InsideTheParkHomeRun(fielders)
+        }
+    })
+));
+
 named!(play_description (&[u8]) -> PlayDescription, alt_complete!(
+    map!(preceded!(tag!("SB"), base), PlayDescription::StolenBase) |
     value!(PlayDescription::Balk, tag!("BK")) |
     value!(PlayDescription::PassedBall, tag!("PB")) |
     value!(PlayDescription::WildPitch, tag!("WP")) |
+    value!(PlayDescription::NoPlay, tag!("NP")) |
     map!(preceded!(tag!("FC"), fielder), PlayDescription::FieldersChoice) |
     map!(preceded!(tag!("S"), many0!(fielder)), PlayDescription::Single) |
     map!(preceded!(tag!("D"), many0!(fielder)), PlayDescription::Double) |
     map!(preceded!(tag!("T"), many0!(fielder)), PlayDescription::Triple) |
+    play_desc_hr |
     play_desc_strikeout |
+    play_desc_walk |
     complete!(play_desc_gidp) |
     play_desc_fielding
 ));
@@ -127,7 +150,8 @@ named!(modifier (&[u8]) -> PlayModifier, do_parse!(
         value!(PlayModifier::UnspecifiedTriplePlay, tag!("TP")) |
         value!(PlayModifier::UmpireInterference, tag!("UINT")) |
         value!(PlayModifier::UmpireReview, tag!("UREV")) |
-        complete!(hit_with_location)
+        complete!(hit_with_location) |
+        map!(complete!(hit_location), PlayModifier::HitLocation)
     ) >>
     // This is undocumented on the guide... no idea what this is.
     opt!(complete!(one_of!("+-"))) >>
@@ -172,7 +196,7 @@ named!(advance (&[u8]) -> Advance, do_parse!(
 ));
 
 named!(play_event (&[u8]) -> PlayEvent, do_parse!(
-    play_desc: complete!(dbg!(play_description)) >>
+    play_desc: complete!(play_description) >>
     modifiers: many0!(preceded!(tag!("/"), complete!(modifier))) >>
     advances: opt!(complete!(preceded!(tag!("."),
                              separated_list!(tag!(";"),
@@ -555,6 +579,7 @@ mod tests {
         let desc2 = PlayDescription::Strikeout(Some(Box::new(PlayDescription::FielderSequence(vec![2, 3], None))));
         let desc3 = PlayDescription::Strikeout(Some(Box::new(PlayDescription::PassedBall)));
         let desc4 = PlayDescription::Strikeout(Some(Box::new(PlayDescription::WildPitch)));
+        let desc5 = PlayDescription::Walk(Some(Box::new(PlayDescription::WildPitch)));
         assert_eq!(Done(&[][..], PlayDescription::FielderSequence(vec![5], None)), play_description(b"5"));
         assert_eq!(Done(&[][..], desc1), play_description(b"23"));
         assert_eq!(Done(&[][..], PlayDescription::Balk), play_description(b"BK"));
@@ -573,6 +598,14 @@ mod tests {
         assert_eq!(Done(&[][..], PlayDescription::Single(vec![3, 4])), play_description(b"S34"));
         assert_eq!(Done(&[][..], PlayDescription::Double(vec![9, 7])), play_description(b"D97"));
         assert_eq!(Done(&[][..], PlayDescription::Triple(vec![5, 6])), play_description(b"T56"));
+        assert_eq!(Done(&[][..], PlayDescription::HomeRun), play_description(b"H"));
+        assert_eq!(Done(&[][..], PlayDescription::HomeRun), play_description(b"HR"));
+        assert_eq!(Done(&[][..], PlayDescription::InsideTheParkHomeRun(vec![3, 4])), play_description(b"H34"));
+        assert_eq!(Done(&[][..], PlayDescription::InsideTheParkHomeRun(vec![3, 4])), play_description(b"HR34"));
+        assert_eq!(Done(&[][..], PlayDescription::Walk(None)), play_description(b"W"));
+        assert_eq!(Done(&[][..], desc5), play_description(b"W+WP"));
+        assert_eq!(Done(&[][..], PlayDescription::NoPlay), play_description(b"NP"));
+        assert_eq!(Done(&[][..], PlayDescription::StolenBase(Base::Third)), play_description(b"SB3"));
     }
 
     #[test]
@@ -676,6 +709,7 @@ mod tests {
         let play1 = b"play,8,0,philb001,12,FBS1FX,23/G-.1-2";
         let play2 = b"play,7,0,finnb001,01,LX,FC2/G.2X3(265);B-2(TH)";
         let play3 = b"play,6,1,heywj001,??,CBFBBS,K";
+        let play4 = b"play,3,0,hamib001,12,FCBX,HR/7/F";
 
         let parsed1 = Event::Play {
             inning: 8,
@@ -742,9 +776,25 @@ mod tests {
                 advances: vec![],
             }
         };
+        let parsed4 = Event::Play {
+            inning: 3,
+            team: Team::Visiting,
+            player: "hamib001".into(),
+            count: Some((1, 2)),
+            pitches: vec![Pitch::Foul, Pitch::CalledStrike, Pitch::Ball, Pitch::BallInPlayBatter],
+            event: PlayEvent {
+                description: PlayDescription::HomeRun,
+                modifiers: vec![
+                    PlayModifier::HitLocation(HitLocation::_7),
+                    PlayModifier::HitWithLocation(HitType::Fly, None)
+                ],
+                advances: vec![],
+            }
+        };
 
         assert_eq!(Done(&[][..], parsed1), play(play1));
         assert_eq!(Done(&[][..], parsed2), play(play2));
         assert_eq!(Done(&[][..], parsed3), play(play3));
+        assert_eq!(Done(&[][..], parsed4), play(play4));
     }
 }
