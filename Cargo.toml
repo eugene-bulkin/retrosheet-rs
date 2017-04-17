@@ -3,5 +3,17 @@ name = "retrosheet"
 version = "0.1.0"
 authors = ["Eugene Bulkin <eugene.bulkin2@gmail.com>"]
 
+description = "A Rust interface for reading Retrosheet data."
+documentation = "https://docs.rs/retrosheet"
+repository = "https://github.com/eugene-bulkin/retrosheet-rs"
+
+keywords = ["baseball", "retrosheet", "data-analysis"]
+categories = ["parsing"]
+
+license = "MIT"
+
+[badges]
+travis-ci = { repository = "eugene-bulkin/retrosheet-rs" }
+
 [dependencies]
 nom = "2.2.1"
