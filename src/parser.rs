@@ -110,9 +110,7 @@ impl Parser {
             if self.state != State::Empty {
                 // We reached the end of input after a game, so make sure the game can be validly
                 // finished, and then add it.
-                let mut old_state = State::Empty;
-                ::std::mem::swap(&mut old_state, &mut self.state);
-                if let State::Game(mut game) = old_state {
+                if let State::Game(mut game) = ::std::mem::replace(&mut self.state, State::Empty) {
                     try!(game.finish().map_err(Error::GameProcessingError));
                     result.push(game);
                 }
