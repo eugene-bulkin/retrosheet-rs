@@ -157,7 +157,6 @@ data,er,warra001,0
 data,er,rondh001,0";
 
 #[test]
-#[ignore]
 fn test_single_game() {
     let mut parser = Parser::new();
 

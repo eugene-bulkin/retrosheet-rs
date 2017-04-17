@@ -71,7 +71,7 @@ impl Parser {
     /// The parser expects the byte-data coming in to be a *complete* event file, so any bytes
     /// remaining are counted as an error. Any other errors are from invalid events.
     pub fn parse(&mut self, mut bytes: &[u8]) -> Result<Vec<Game>, Error> {
-        let result = Vec::new();
+        let mut result = Vec::new();
         while let IResult::Done(rest, evt) = event(bytes) {
             match self.state {
                 State::Empty => {
@@ -107,6 +107,16 @@ impl Parser {
         if !bytes.is_empty() {
             Err(Error::BytesRemaining(bytes.to_vec()))
         } else {
+            if self.state != State::Empty {
+                // We reached the end of input after a game, so make sure the game can be validly
+                // finished, and then add it.
+                let mut old_state = State::Empty;
+                ::std::mem::swap(&mut old_state, &mut self.state);
+                if let State::Game(mut game) = old_state {
+                    try!(game.finish().map_err(Error::GameProcessingError));
+                    result.push(game);
+                }
+            }
             Ok(result)
         }
     }
@@ -148,6 +158,12 @@ foo\n\n");
         let mut parser = Parser::new();
         let _ = parser.parse(b"id,CHN201506130");
         parser.reset();
-        assert!(parser.parse(b"id,CHN201506130").is_ok(), "resetting parser did not allow new game");
+        let result = parser.parse(b"id,CHN201506130
+version,2
+info,number,0
+start,foo,\"Bar\",0,1,6
+play,4,1,buz,00,,NP
+data,er,foo,2");
+        assert!(result.is_ok(), "resetting parser did not allow new game: {}", result.err().unwrap());
     }
 }

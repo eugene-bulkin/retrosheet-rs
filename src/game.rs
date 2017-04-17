@@ -2,7 +2,7 @@ pub use self::{Error as GameError, State as GameState};
 
 use std::collections::{HashMap, HashSet};
 
-use ::event::{Event, Info, Player, Team};
+use ::event::{Event, Info, PlayDescription, Player, Team};
 
 #[derive(Clone, Debug, PartialEq)]
 /// An error that occurs while processing a game.
@@ -13,6 +13,10 @@ pub enum Error {
     InvalidEventBeforeSub(Event),
     /// The event before a substitution should always be a play.
     NoEventBeforeSub,
+    /// Parsing was already completed, so we cannot parse more events.
+    ParsingDone,
+    /// Parsing was not done when the user attempted to complete game processing.
+    ParsingIncomplete,
     /// A portion of processing is not yet implemented.
     Unimplemented,
 }
@@ -22,13 +26,19 @@ impl ::std::fmt::Display for Error {
         match *self {
             Error::InvalidEvent(ref state, ref event) => {
                 write!(f, "the event {:?} is not valid in the {:?} state", event, state)
-            },
+            }
             Error::InvalidEventBeforeSub(ref event) => {
                 write!(f, "substitutions must be preceded by a play event; got {:?}", event)
-            },
+            }
             Error::NoEventBeforeSub => {
                 write!(f, "substitutions must be preceded by a play event")
-            },
+            }
+            Error::ParsingDone => {
+                write!(f, "parsing already completed")
+            }
+            Error::ParsingIncomplete => {
+                write!(f, "parsing not fully done before attempted completion")
+            }
             Error::Unimplemented => {
                 write!(f, "the requested command is not yet implemented")
             }
@@ -56,6 +66,8 @@ pub enum State {
     Plays,
     /// Parsing end-of-game data.
     Data,
+    /// Done parsing.
+    Done,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -72,6 +84,8 @@ pub struct Game {
     /// The set of substitutions that happened during the game. This can be used to construct a full
     /// list of who was playing during what parts of the game.
     pub substitutions: Vec<Substitution>,
+    /// The set of data events that were recorded after play-by-play information.
+    pub data: Vec<Event>,
     state: State,
 }
 
@@ -85,6 +99,7 @@ impl Game {
             starters: HashSet::new(),
             plays: vec![],
             substitutions: vec![],
+            data: vec![],
         }
     }
 
@@ -127,7 +142,7 @@ impl Game {
             Event::Play { .. } => {
                 self.plays.push(event);
                 Ok(())
-            },
+            }
             Event::Sub { player } => {
                 // We actually get rid of the last play, because it will always be a NoPlay without
                 // any pitch count. If not, it's an error and parsing failed anyway.
@@ -135,23 +150,54 @@ impl Game {
                 match last_evt {
                     Some(event) => {
                         match event {
-                            Event::Play { inning, team, .. } => {
-                                self.substitutions.push(Substitution {
-                                    inning: inning,
-                                    batting_team: team,
-                                    player: player
-                                });
-                                Ok(())
-                            },
-                            _ => Err(Error::InvalidEventBeforeSub(event))
+                            Event::Play { ref inning, ref team, event: ref play_event, .. } => {
+                                if play_event.description != PlayDescription::NoPlay {
+                                    Err(Error::InvalidEventBeforeSub(event.clone()))
+                                } else {
+                                    self.substitutions.push(Substitution {
+                                        inning: *inning,
+                                        batting_team: *team,
+                                        player: player
+                                    });
+                                    Ok(())
+                                }
+                            }
+                            _ => Err(Error::InvalidEventBeforeSub(event.clone()))
                         }
-                    },
+                    }
                     None => Err(Error::NoEventBeforeSub),
                 }
-            },
+            }
+            Event::Data { .. } => {
+                // Done with plays, so collect data.
+                self.state = State::Data;
+                self.process_event(event)
+            }
             _ => {
                 Err(Error::InvalidEvent(self.state, event.clone()))
             }
+        }
+    }
+
+    fn process_data_event(&mut self, event: Event) -> Result<(), Error> {
+        match event {
+            Event::Data { .. } => {
+                self.data.push(event);
+                Ok(())
+            }
+            _ => {
+                Err(Error::InvalidEvent(self.state, event.clone()))
+            }
+        }
+    }
+
+    /// Attempt to complete parsing. Only allowed in the data state.
+    pub fn finish(&mut self) -> Result<(), Error> {
+        if let State::Data = self.state {
+            self.state = State::Done;
+            Ok(())
+        } else {
+            Err(Error::ParsingIncomplete)
         }
     }
 
@@ -161,7 +207,8 @@ impl Game {
             State::Info => self.process_info_event(event),
             State::Starters => self.process_starter_event(event),
             State::Plays => self.process_play_event(event),
-            _ => Err(Error::Unimplemented),
+            State::Data => self.process_data_event(event),
+            State::Done => Err(Error::ParsingDone)
         }
     }
 }
@@ -173,7 +220,7 @@ mod tests {
     use std::collections::HashSet;
     use std::iter::FromIterator;
 
-    use ::event::{Event, Info, Player, PlayDescription, PlayEvent, Team};
+    use ::event::{DataEventType, Event, Info, Player, PlayDescription, PlayEvent, Team};
 
     #[test]
     fn test_process_info() {
@@ -236,5 +283,99 @@ mod tests {
             }
         }));
         assert_eq!(State::Plays, game.state);
+    }
+
+    #[test]
+    fn test_process_plays() {
+        let event1 = Event::Play {
+            inning: 2,
+            team: Team::Visiting,
+            player: "foo".into(),
+            count: None,
+            pitches: vec![],
+            event: PlayEvent {
+                description: PlayDescription::Balk,
+                modifiers: vec![],
+                advances: vec![],
+            }
+        };
+
+        let event_np = Event::Play {
+            inning: 2,
+            team: Team::Visiting,
+            player: "foo".into(),
+            count: None,
+            pitches: vec![],
+            event: PlayEvent {
+                description: PlayDescription::NoPlay,
+                modifiers: vec![],
+                advances: vec![],
+            }
+        };
+        let player = Player {
+            id: "fred103".into(),
+            name: "fred".into(),
+            team: Team::Home,
+            batting_pos: 7,
+            fielding_pos: 6,
+        };
+        let event2 = Event::Sub {
+            player: player.clone()
+        };
+        let event3 = Event::Data {
+            data_type: DataEventType::EarnedRuns,
+            player: "fred103".into(),
+            value: "2".into()
+        };
+
+        {
+            let mut game = Game::new("foo");
+            game.state = State::Plays;
+            assert_eq!(Ok(()), game.process_event(event1.clone()));
+            assert_eq!(vec![event1.clone()], game.plays);
+
+            assert_eq!(Ok(()), game.process_event(event_np.clone()));
+            assert_eq!(Ok(()), game.process_event(event2.clone()));
+            assert_eq!(vec![event1.clone()], game.plays);
+
+            assert_eq!(vec![Substitution {
+                inning: 2,
+                batting_team: Team::Visiting,
+                player: player.clone(),
+            }], game.substitutions);
+
+            assert_eq!(Ok(()), game.process_event(event3));
+            assert_eq!(State::Data, game.state);
+        }
+
+        {
+            let mut game = Game::new("foo");
+            game.state = State::Plays;
+            assert_eq!(Ok(()), game.process_event(event1.clone()));
+            assert_eq!(vec![event1.clone()], game.plays);
+
+            assert_eq!(Err(Error::InvalidEventBeforeSub(event1.clone())), game.process_event(event2.clone()));
+        }
+
+        {
+            let mut game = Game::new("foo");
+            game.state = State::Plays;
+
+            assert_eq!(Err(Error::NoEventBeforeSub), game.process_event(event2.clone()));
+        }
+    }
+
+    #[test]
+    fn test_done() {
+        let mut game = Game::new("foo");
+        assert_eq!(Err(Error::ParsingIncomplete), game.finish());
+
+        game.state = State::Data;
+        assert_eq!(Ok(()), game.finish());
+
+        assert_eq!(Err(Error::ParsingDone), game.process_event(Event::Info {
+            key: Info::HomeTeam,
+            data: "bar".into()
+        }));
     }
 }
