@@ -76,10 +76,13 @@ named!(play_desc_hr (&[u8]) -> PlayDescription, do_parse!(
 
 named!(play_description (&[u8]) -> PlayDescription, alt_complete!(
     map!(preceded!(tag!("SB"), base), PlayDescription::StolenBase) |
+    value!(PlayDescription::HitByPitch, tag!("HP")) |
     value!(PlayDescription::Balk, tag!("BK")) |
     value!(PlayDescription::PassedBall, tag!("PB")) |
     value!(PlayDescription::WildPitch, tag!("WP")) |
     value!(PlayDescription::NoPlay, tag!("NP")) |
+    map!(preceded!(tag!("FLE"), fielder), PlayDescription::FoulFlyBallError) |
+    map!(preceded!(tag!("E"), fielder), PlayDescription::Error) |
     map!(preceded!(tag!("FC"), fielder), PlayDescription::FieldersChoice) |
     map!(preceded!(tag!("S"), many0!(fielder)), PlayDescription::Single) |
     map!(preceded!(tag!("D"), many0!(fielder)), PlayDescription::Double) |
@@ -605,6 +608,8 @@ mod tests {
         assert_eq!(Done(&[][..], desc2), play_description(b"K23"));
         assert_eq!(Done(&[][..], desc3), play_description(b"K+PB"));
         assert_eq!(Done(&[][..], desc4), play_description(b"K+WP"));
+        assert_eq!(Done(&[][..], PlayDescription::Error(3)), play_description(b"E3"));
+        assert_eq!(Done(&[][..], PlayDescription::FoulFlyBallError(3)), play_description(b"FLE3"));
         assert_eq!(Done(&[][..], PlayDescription::Single(vec![])), play_description(b"S"));
         assert_eq!(Done(&[][..], PlayDescription::Double(vec![])), play_description(b"D"));
         assert_eq!(Done(&[][..], PlayDescription::Triple(vec![])), play_description(b"T"));
@@ -620,6 +625,7 @@ mod tests {
         assert_eq!(Done(&[][..], PlayDescription::InsideTheParkHomeRun(vec![3, 4])), play_description(b"HR34"));
         assert_eq!(Done(&[][..], PlayDescription::Walk(None)), play_description(b"W"));
         assert_eq!(Done(&[][..], desc5), play_description(b"W+WP"));
+        assert_eq!(Done(&[][..], PlayDescription::HitByPitch), play_description(b"HP"));
         assert_eq!(Done(&[][..], PlayDescription::NoPlay), play_description(b"NP"));
         assert_eq!(Done(&[][..], PlayDescription::StolenBase(Base::Third)), play_description(b"SB3"));
     }

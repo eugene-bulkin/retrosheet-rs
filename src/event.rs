@@ -198,6 +198,10 @@ pub enum PlayDescription {
     /// A fielder's choice, where the fielder given is the fielder first fielding the ball. The
     /// batter advance to first is understood if it is not given explicitly.
     FieldersChoice(Fielder),
+    /// An error by a fielder.
+    Error(Fielder),
+    /// An error by a fielder attempting to field a foul fly ball.
+    FoulFlyBallError(Fielder),
     /// A strikeout. May or may not be accompanied by an additional event, for example if there was
     /// a dropped third strike.
     Strikeout(Option<Box<PlayDescription>>),
@@ -222,6 +226,8 @@ pub enum PlayDescription {
     NoPlay,
     /// A stolen base, with the base information.
     StolenBase(Base),
+    /// The player was hit by a pitch.
+    HitByPitch,
     // TODO: Finish all of these!
 }
 
