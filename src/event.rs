@@ -49,6 +49,57 @@ pub enum Info {
     DayNight,
     /// Whether or not the designated hitter is being used.
     DesignatedHitter,
+    /// The extend of pitch information available. Either `pitches` (full detail), `count` (just the
+    /// pitch count) or `none` (nothing) are the values.
+    Pitches,
+    /// The home umpire's ID.
+    UmpireHome,
+    /// The first base umpire's ID.
+    Umpire1B,
+    /// The second base umpire's ID.
+    Umpire2B,
+    /// The third base umpire's ID.
+    Umpire3B,
+    /// Field condition: one of `dry`, `soaked`, `wet` or `unknown`.
+    FieldCondition,
+    /// Precipitation: one of `drizzle`, `none`, `rain`, `showers`, `snow`, or `unknown`.
+    Precipitation,
+    /// The status of the sky: one of `cloudy`, `dome`, `night`, `overcast`, `sunny`, or `unknown`.
+    Sky,
+    /// The temperature during the game, in degrees Fahrenheit. 0 is the unknown value because it's
+    /// unlikely a game would ever be played in 0F weather.
+    Temperature,
+    /// The wind direction: one of `fromcf`, `fromlf`, `fromrf`, `ltor`, `rtol`, `tocf`, `tolf`,
+    /// `torf`, or `unknown`.
+    WindDirection,
+    /// The windspeed, with unknown being indicated by -1.
+    WindSpeed,
+    /// The length of the game in minutes. The key in actual Retrosheet data will be `timeofgame`.
+    GameLength,
+    /// The attendance of the game.
+    Attendance,
+    /// The winning pitcher.
+    WinningPitcher,
+    /// The losing pitcher.
+    LosingPitcher,
+    /// If applicable, the pitcher who got the save.
+    SavePitcher,
+    /// When used as an official statistic, the game winning RBI.
+    GameWinningRBI,
+    /// When the game was processed.
+    EditTime,
+    /// How the game was scored.
+    ScoreMethod,
+    /// The version of the program used to score the program.
+    InputProgramVersion,
+    /// The person who inputted the data.
+    Inputter,
+    /// The time at which the data was input.
+    InputTime,
+    /// The scorer of the game.
+    Scorer,
+    /// The translator of the data.
+    Translator,
     /// An unknown metadata type.
     Unknown,
 }
@@ -59,6 +110,31 @@ impl<'a> From<&'a [u8]> for Info {
             b"visteam" => Info::VisitingTeam,
             b"hometeam" => Info::HomeTeam,
             b"date" => Info::Date,
+            b"number" => Info::Number,
+            b"pitches" => Info::Pitches,
+            b"umphome" => Info::UmpireHome,
+            b"ump1b" => Info::Umpire1B,
+            b"ump2b" => Info::Umpire2B,
+            b"ump3b" => Info::Umpire3B,
+            b"fieldcond" => Info::FieldCondition,
+            b"precip" => Info::Precipitation,
+            b"sky" => Info::Sky,
+            b"temp" => Info::Temperature,
+            b"winddir" => Info::WindDirection,
+            b"windspeed" => Info::WindSpeed,
+            b"timeofgame" => Info::GameLength,
+            b"attendence" => Info::Attendance,
+            b"wp" => Info::WinningPitcher,
+            b"lp" => Info::LosingPitcher,
+            b"save" => Info::SavePitcher,
+            b"gwrbi" => Info::GameWinningRBI,
+            b"edittime" => Info::EditTime,
+            b"howscored" => Info::ScoreMethod,
+            b"inputprogvers" => Info::InputProgramVersion,
+            b"inputter" => Info::Inputter,
+            b"inputtime" => Info::InputTime,
+            b"scorer" => Info::Scorer,
+            b"translator" => Info::Translator,
             _ => Info::Unknown,
         }
     }
@@ -675,6 +751,38 @@ pub enum Event {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn test_info_parse() {
+        assert_eq!(Info::VisitingTeam, (&b"visteam"[..]).into());
+        assert_eq!(Info::HomeTeam, (&b"hometeam"[..]).into());
+        assert_eq!(Info::Date, (&b"date"[..]).into());
+        assert_eq!(Info::Number, (&b"number"[..]).into());
+        assert_eq!(Info::Pitches, (&b"pitches"[..]).into());
+        assert_eq!(Info::UmpireHome, (&b"umphome"[..]).into());
+        assert_eq!(Info::Umpire1B, (&b"ump1b"[..]).into());
+        assert_eq!(Info::Umpire2B, (&b"ump2b"[..]).into());
+        assert_eq!(Info::Umpire3B, (&b"ump3b"[..]).into());
+        assert_eq!(Info::FieldCondition, (&b"fieldcond"[..]).into());
+        assert_eq!(Info::Precipitation, (&b"precip"[..]).into());
+        assert_eq!(Info::Sky, (&b"sky"[..]).into());
+        assert_eq!(Info::Temperature, (&b"temp"[..]).into());
+        assert_eq!(Info::WindDirection, (&b"winddir"[..]).into());
+        assert_eq!(Info::WindSpeed, (&b"windspeed"[..]).into());
+        assert_eq!(Info::GameLength, (&b"timeofgame"[..]).into());
+        assert_eq!(Info::Attendance, (&b"attendence"[..]).into());
+        assert_eq!(Info::WinningPitcher, (&b"wp"[..]).into());
+        assert_eq!(Info::LosingPitcher, (&b"lp"[..]).into());
+        assert_eq!(Info::SavePitcher, (&b"save"[..]).into());
+        assert_eq!(Info::GameWinningRBI, (&b"gwrbi"[..]).into());
+        assert_eq!(Info::EditTime, (&b"edittime"[..]).into());
+        assert_eq!(Info::ScoreMethod, (&b"howscored"[..]).into());
+        assert_eq!(Info::InputProgramVersion, (&b"inputprogvers"[..]).into());
+        assert_eq!(Info::Inputter, (&b"inputter"[..]).into());
+        assert_eq!(Info::InputTime, (&b"inputtime"[..]).into());
+        assert_eq!(Info::Scorer, (&b"scorer"[..]).into());
+        assert_eq!(Info::Translator, (&b"translator"[..]).into());
+    }
 
     #[test]
     fn test_data_event_parse() {
