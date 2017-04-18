@@ -620,6 +620,7 @@ mod tests {
         let desc3 = PlayDescription::Strikeout(Some(Box::new(PlayDescription::PassedBall)));
         let desc4 = PlayDescription::Strikeout(Some(Box::new(PlayDescription::WildPitch)));
         let desc5 = PlayDescription::Walk(Some(Box::new(PlayDescription::WildPitch)));
+        assert_eq!(Done(&[][..], PlayDescription::GIDP(vec![6, 4, 3], Base::Second)), play_description(b"64(2)3"));
         assert_eq!(Done(&[][..], PlayDescription::FielderSequence(vec![5], None)), play_description(b"5"));
         assert_eq!(Done(&[][..], desc1), play_description(b"23"));
         assert_eq!(Done(&[][..], PlayDescription::Balk), play_description(b"BK"));

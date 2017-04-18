@@ -671,3 +671,58 @@ pub enum Event {
         value: String,
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_data_event_parse() {
+        assert_eq!(DataEventType::EarnedRuns, (&b"er"[..]).into());
+    }
+
+    #[test]
+    #[should_panic]
+    fn test_data_event_panic() {
+        let _: DataEventType = (&b"foo"[..]).into();
+    }
+
+    #[test]
+    #[should_panic]
+    fn test_hit_location_panic() {
+        let _: HitLocation = (&b"foocmfadksl"[..]).into();
+    }
+
+    #[test]
+    fn test_pitch_parse() {
+        assert_eq!(Pitch::PickoffThrowCatcher, '+'.into());
+        assert_eq!(Pitch::BlockedByCatcher, '*'.into());
+        assert_eq!(Pitch::NonBatterPlay, '.'.into());
+        assert_eq!(Pitch::PickoffFirst, '1'.into());
+        assert_eq!(Pitch::PickoffSecond, '2'.into());
+        assert_eq!(Pitch::PickoffThird, '3'.into());
+        assert_eq!(Pitch::RunnerGoingOnPitch, '>'.into());
+        assert_eq!(Pitch::Ball, 'B'.into());
+        assert_eq!(Pitch::CalledStrike, 'C'.into());
+        assert_eq!(Pitch::Foul, 'F'.into());
+        assert_eq!(Pitch::HitBatter, 'H'.into());
+        assert_eq!(Pitch::IntentionalBall, 'I'.into());
+        assert_eq!(Pitch::UnknownStrike, 'K'.into());
+        assert_eq!(Pitch::FoulBunt, 'L'.into());
+        assert_eq!(Pitch::MissedBunt, 'M'.into());
+        assert_eq!(Pitch::NoPitch, 'N'.into());
+        assert_eq!(Pitch::FoulTipBunt, 'O'.into());
+        assert_eq!(Pitch::Pitchout, 'P'.into());
+        assert_eq!(Pitch::SwingOnPitchout, 'Q'.into());
+        assert_eq!(Pitch::FoulOnPitchout, 'R'.into());
+        assert_eq!(Pitch::SwingingStrike, 'S'.into());
+        assert_eq!(Pitch::FoulTip, 'T'.into());
+        assert_eq!(Pitch::BallPitcherWentToMouth, 'V'.into());
+        assert_eq!(Pitch::BallInPlayBatter, 'X'.into());
+        assert_eq!(Pitch::BallInPlayPitchout, 'Y'.into());
+
+        assert_eq!(Pitch::Unknown, 'U'.into());
+        assert_eq!(Pitch::Unknown, 'Z'.into());
+        assert_eq!(Pitch::Unknown, 'A'.into());
+    }
+}
