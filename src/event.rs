@@ -782,6 +782,9 @@ mod tests {
         assert_eq!(Info::InputTime, (&b"inputtime"[..]).into());
         assert_eq!(Info::Scorer, (&b"scorer"[..]).into());
         assert_eq!(Info::Translator, (&b"translator"[..]).into());
+
+        assert_eq!(Info::Unknown, (&b"foobar"[..]).into());
+        assert_eq!(Info::Unknown, (&b"asdfasdf"[..]).into());
     }
 
     #[test]
