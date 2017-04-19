@@ -50,9 +50,12 @@ impl ::std::fmt::Display for Error {
 /// A substitution. Denotes what inning and batting team (i.e. bottom or top of inning) and which
 /// player was subbed in.
 pub struct Substitution {
-    inning: u8,
-    batting_team: Team,
-    player: Player,
+    /// The inning in which the substitution was made.
+    pub inning: u8,
+    /// The team that was batting at the time of hte substitution.
+    pub batting_team: Team,
+    /// The player which was subbed in.
+    pub player: Player,
 }
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
