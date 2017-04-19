@@ -194,6 +194,12 @@ impl Game {
         }
     }
 
+    /// Retrieve the game state.
+    pub fn get_state(&self) -> State {
+        // TODO: When pub(restricted) gets stabilized, we can just make the field selectively public
+        self.state
+    }
+
     /// Attempt to complete parsing. Only allowed in the data state.
     pub fn finish(&mut self) -> Result<(), Error> {
         if let State::Data = self.state {

@@ -1,7 +1,7 @@
 use nom::IResult;
 
 use ::event::Event;
-use ::game::{Game, GameError};
+use ::game::{Game, GameError, GameState};
 use ::parsers::event;
 
 #[derive(Clone, Debug, PartialEq)]
@@ -73,24 +73,29 @@ impl Parser {
     pub fn parse(&mut self, mut bytes: &[u8]) -> Result<Vec<Game>, Error> {
         let mut result = Vec::new();
         while let IResult::Done(rest, evt) = event(bytes) {
+            let mut new_game: Option<Game> = None;
             match self.state {
                 State::Empty => {
                     // The only valid event when the state is empty is a game ID (which marks a new
                     // game).
                     if let Event::GameId { id } = evt {
-                        let game = Game::new(id);
-                        self.state = State::Game(game);
+                        new_game = Some(Game::new(id));
                     } else {
                         return Err(Error::NoGame(evt.clone()));
                     }
                 }
                 State::Game(ref mut game) => {
                     match evt {
-                        Event::GameId { .. } => {
+                        Event::GameId { id } => {
                             // Game IDs can't appear until the previous game is done.
-                            // TODO: The way to actually check that the previous game is done is by
-                            //       confirming it is in the Data stage.
-                            return Err(Error::UnexpectedGameId { current_game_id: game.id.clone() });
+                            if let GameState::Data = game.get_state() {
+                                // The data stage is the last stage of game processing, so if an id
+                                // event occurs during that stage, that means the previous game is
+                                // done being parsed.
+                                new_game = Some(Game::new(id));
+                            } else {
+                                return Err(Error::UnexpectedGameId { current_game_id: game.id.clone() });
+                            }
                         }
                         Event::Version { .. } => {
                             // We actually don't care about the version as long as it came in a
@@ -101,6 +106,18 @@ impl Parser {
                         }
                     }
                 }
+            }
+            if let Some(game) = new_game {
+                // We do this because we can't borrow the state mutably twice up there during the
+                // match, and it would be too awkward to work around that.
+                if self.state != State::Empty {
+                    // Pull out the current game in the state and finish it up, then add to the list
+                    if let State::Game(mut game) = ::std::mem::replace(&mut self.state, State::Empty) {
+                        try!(game.finish().map_err(Error::GameProcessingError));
+                        result.push(game);
+                    }
+                }
+                self.state = State::Game(game);
             }
             bytes = rest;
         }
@@ -140,8 +157,7 @@ data,er,foo,2";
                   PlayEvent, Team};
     use ::game::{Game, Substitution};
 
-    #[test]
-    fn test_game_parse() {
+    fn expected_values() -> (HashMap<Info, String>, HashSet<Player>, Vec<Event>, Vec<Event>, Vec<Substitution>) {
         let expected_info = {
             let mut map = HashMap::new();
             map.insert(Info::Number, "0".into());
@@ -203,6 +219,13 @@ data,er,foo,2";
             }
         ];
 
+        (expected_info, expected_starters, expected_plays, expected_data, expected_substitutions)
+    }
+
+    #[test]
+    fn test_game_parse() {
+        let (expected_info, expected_starters, expected_plays, expected_data, expected_substitutions) = expected_values();
+
         let mut parser = Parser::new();
         assert_eq!(State::Empty, parser.state);
 
@@ -213,6 +236,38 @@ data,er,foo,2";
         assert_eq!(expected_plays, game_result.plays);
         assert_eq!(expected_substitutions, game_result.substitutions);
         assert_eq!(expected_data, game_result.data);
+
+        assert_eq!(State::Empty, parser.state);
+    }
+
+    #[test]
+    fn test_multiple_games_parse() {
+        let (expected_info, expected_starters, expected_plays, expected_data, expected_substitutions) = expected_values();
+
+        let buf = {
+            let mut buf: Vec<u8> = SHORT_GAME.to_vec();
+            buf.extend_from_slice(b"\n");
+            buf.extend_from_slice(SHORT_GAME);
+            buf
+        };
+
+        let mut parser = Parser::new();
+
+        let result = parser.parse(&buf).unwrap();
+        let ref game_result1: Game = result[0];
+        let ref game_result2: Game = result[1];
+
+        assert_eq!(expected_info, game_result1.info);
+        assert_eq!(expected_starters, game_result1.starters);
+        assert_eq!(expected_plays, game_result1.plays);
+        assert_eq!(expected_substitutions, game_result1.substitutions);
+        assert_eq!(expected_data, game_result1.data);
+
+        assert_eq!(expected_info, game_result2.info);
+        assert_eq!(expected_starters, game_result2.starters);
+        assert_eq!(expected_plays, game_result2.plays);
+        assert_eq!(expected_substitutions, game_result2.substitutions);
+        assert_eq!(expected_data, game_result2.data);
     }
 
     #[test]
