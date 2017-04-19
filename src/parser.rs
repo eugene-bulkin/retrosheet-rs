@@ -122,9 +122,98 @@ impl Parser {
 
 #[cfg(test)]
 mod tests {
+    const SHORT_GAME: &'static [u8] = b"id,CHN201506130
+version,2
+info,number,0
+start,foo,\"Bar\",0,1,6
+play,4,1,meh,12,CCX,S8.B-2
+play,4,1,buz,00,,NP
+sub,buz,\"Bax\",1,3,4
+data,er,foo,2";
+
     use super::*;
 
-    use ::event::Event;
+    use std::collections::{HashMap, HashSet};
+    use std::iter::FromIterator;
+
+    use ::event::{Advance, Base, DataEventType, Event, Info, Pitch, Player, PlayDescription,
+                  PlayEvent, Team};
+    use ::game::{Game, Substitution};
+
+    #[test]
+    fn test_game_parse() {
+        let expected_info = {
+            let mut map = HashMap::new();
+            map.insert(Info::Number, "0".into());
+            map
+        };
+        let expected_starters = HashSet::from_iter(vec![
+            Player {
+                id: "foo".into(),
+                name: "Bar".into(),
+                team: Team::Visiting,
+                batting_pos: 1,
+                fielding_pos: 6,
+            }
+        ].into_iter());
+        let expected_plays = vec![
+            Event::Play {
+                inning: 4,
+                team: Team::Home,
+                player: "meh".into(),
+                count: Some((1, 2)),
+                pitches: vec![
+                    Pitch::CalledStrike,
+                    Pitch::CalledStrike,
+                    Pitch::BallInPlayBatter,
+                ],
+                event: PlayEvent {
+                    description: PlayDescription::Single(vec![8]),
+                    modifiers: vec![],
+                    advances: vec![
+                        Advance {
+                            from: Base::Home,
+                            to: Base::Second,
+                            success: true,
+                            parameters: vec![],
+                        }
+                    ],
+                },
+            }
+            // The NP should be gone because of the sub!
+        ];
+        let expected_data = vec![
+            Event::Data {
+                data_type: DataEventType::EarnedRuns,
+                player: "foo".into(),
+                value: "2".into(),
+            }
+        ];
+        let expected_substitutions = vec![
+            Substitution {
+                inning: 4,
+                batting_team: Team::Home,
+                player: Player {
+                    id: "buz".into(),
+                    name: "Bax".into(),
+                    team: Team::Home,
+                    batting_pos: 3,
+                    fielding_pos: 4,
+                },
+            }
+        ];
+
+        let mut parser = Parser::new();
+        assert_eq!(State::Empty, parser.state);
+
+        let result = parser.parse(SHORT_GAME).unwrap();
+        let ref game_result: Game = result[0];
+        assert_eq!(expected_info, game_result.info);
+        assert_eq!(expected_starters, game_result.starters);
+        assert_eq!(expected_plays, game_result.plays);
+        assert_eq!(expected_substitutions, game_result.substitutions);
+        assert_eq!(expected_data, game_result.data);
+    }
 
     #[test]
     fn test_unexpected_id() {
@@ -156,12 +245,7 @@ foo\n\n");
         let mut parser = Parser::new();
         let _ = parser.parse(b"id,CHN201506130");
         parser.reset();
-        let result = parser.parse(b"id,CHN201506130
-version,2
-info,number,0
-start,foo,\"Bar\",0,1,6
-play,4,1,buz,00,,NP
-data,er,foo,2");
+        let result = parser.parse(SHORT_GAME);
         assert!(result.is_ok(), "resetting parser did not allow new game: {}", result.err().unwrap());
     }
 }
