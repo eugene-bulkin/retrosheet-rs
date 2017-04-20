@@ -271,6 +271,20 @@ pub enum PlayDescription {
     FielderSequence(Vec<Fielder>, Option<Base>),
     /// The batter grounded into a double play, with the base the first out was recorded on.
     GIDP(Vec<Fielder>, Base),
+    /// The batter grounded into a triple play. We provide the assists for the first out (and the
+    /// base the first out was recorded on), the second out, and the putout.
+    GITP {
+        /// The throws for the first out.
+        first_assists: Vec<Fielder>,
+        /// The base the first out was recorded on.
+        first_out: Base,
+        /// The throws for the second out.
+        second_assists: Vec<Fielder>,
+        /// The base the second out was recorded on.
+        second_out: Base,
+        /// The putout fielder.
+        putout: Fielder,
+    },
     /// A fielder's choice, where the fielder given is the fielder first fielding the ball. The
     /// batter advance to first is understood if it is not given explicitly.
     FieldersChoice(Fielder),
@@ -325,7 +339,30 @@ pub enum PlayDescription {
     /// throws that resulted in the out. Note that there wouldn't be errors here since the
     /// implication is that they were caught.
     PickOffCaughtStealing(Base, Vec<Fielder>),
-    // TODO: Finish all of these!
+    /// A batter lining into a double play. Should be followed with an `LDP` modifier, but we don't
+    /// verify this.
+    LinedIntoDoublePlay {
+        /// The fielder who made the first out.
+        first_out: Fielder,
+        /// The throws for the second out.
+        second_out: Vec<Fielder>,
+        /// The base the second out was recorded on.
+        second_out_runner: Base,
+    },
+    /// A batter lining into a triple play. Should be followed with an `LTP` modifier, but we don't
+    /// verify this.
+    LinedIntoTriplePlay {
+        /// The fielder who made the first out.
+        first_out: Fielder,
+        /// The throws for the second out.
+        second_out: Vec<Fielder>,
+        /// The base the second out was recorded on.
+        second_out_runner: Base,
+        /// The throws for the third out.
+        third_out: Vec<Fielder>,
+        /// The base the third out was recorded on.
+        third_out_runner: Base,
+    }
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
