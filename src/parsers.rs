@@ -43,6 +43,25 @@ named!(play_desc_gidp (&[u8]) -> PlayDescription, do_parse!(
     })
 ));
 
+named!(play_desc_gitp (&[u8]) -> PlayDescription, do_parse!(
+    first_assists: many1!(fielder) >>
+    tag!("(") >>
+    first_out: base >>
+    tag!(")") >>
+    second_assists: many1!(fielder) >>
+    tag!("(") >>
+    second_out: base >>
+    tag!(")") >>
+    putout: fielder >>
+    (PlayDescription::GITP {
+        first_assists: first_assists,
+        first_out: first_out,
+        second_assists: second_assists,
+        second_out: second_out,
+        putout: putout
+    })
+));
+
 named!(play_desc_fielding (&[u8]) -> PlayDescription, do_parse!(
     fielders: many1!(fielder) >>
     abnormal_putout: opt!(complete!(do_parse!(
@@ -158,6 +177,7 @@ named!(play_description (&[u8]) -> PlayDescription, alt_complete!(
     play_desc_hr |
     play_desc_strikeout |
     play_desc_walk |
+    complete!(play_desc_gitp) |
     complete!(play_desc_gidp) |
     play_desc_fielding
 ));
@@ -705,6 +725,13 @@ mod tests {
             third_out: vec![6, 3],
             third_out_runner: Base::First,
         };
+        let desc9 = PlayDescription::GITP {
+            first_assists: vec![5],
+            first_out: Base::Second,
+            second_assists: vec![4],
+            second_out: Base::First,
+            putout: 3,
+        };
         assert_parsed!(PlayDescription::GIDP(vec![6, 4, 3], Base::Second), play_description(b"64(2)3"));
         assert_parsed!(PlayDescription::FielderSequence(vec![5], None), play_description(b"5"));
         assert_parsed!(desc1, play_description(b"23"));
@@ -755,6 +782,7 @@ mod tests {
         assert_parsed!(desc6, play_description(b"8(B)84(2)"));
         assert_parsed!(desc7, play_description(b"3(B)3(1)"));
         assert_parsed!(desc8, play_description(b"1(B)16(2)63(1)"));
+        assert_parsed!(desc9, play_description(b"5(2)4(1)3"));
     }
 
     #[test]
