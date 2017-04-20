@@ -304,6 +304,14 @@ pub enum PlayDescription {
     StolenBase(Base),
     /// The player was hit by a pitch.
     HitByPitch,
+    /// Catcher interference. Technically, this also covers interference by the pitcher or first
+    /// baseman for interfering with the batter, so there is still a fielder option. But usually the
+    /// fielder will be the catcher.
+    CatcherInterference(Fielder),
+    /// A ground rule double. No fielder specified.
+    GroundRuleDouble,
+    /// An intentional walk.
+    IntentionalWalk,
     // TODO: Finish all of these!
 }
 
