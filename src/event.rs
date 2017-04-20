@@ -363,7 +363,6 @@ pub enum PlayDescription {
         /// The base the third out was recorded on.
         third_out_runner: Base,
     }
-    // TODO: Finish all of these!
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
