@@ -82,14 +82,18 @@ named!(play_desc_hr (&[u8]) -> PlayDescription, do_parse!(
 
 named!(play_description (&[u8]) -> PlayDescription, alt_complete!(
     map!(preceded!(tag!("SB"), base), PlayDescription::StolenBase) |
+    value!(PlayDescription::IntentionalWalk, tag!("IW")) |
+    value!(PlayDescription::IntentionalWalk, tag!("I")) |
     value!(PlayDescription::HitByPitch, tag!("HP")) |
     value!(PlayDescription::Balk, tag!("BK")) |
     value!(PlayDescription::PassedBall, tag!("PB")) |
     value!(PlayDescription::WildPitch, tag!("WP")) |
+    value!(PlayDescription::GroundRuleDouble, tag!("DGR")) |
     value!(PlayDescription::NoPlay, tag!("NP")) |
     map!(preceded!(tag!("FLE"), fielder), PlayDescription::FoulFlyBallError) |
     map!(preceded!(tag!("E"), fielder), PlayDescription::Error) |
     map!(preceded!(tag!("FC"), fielder), PlayDescription::FieldersChoice) |
+    map!(preceded!(tag!("C/E"), fielder), PlayDescription::CatcherInterference) |
     map!(preceded!(tag!("S"), many0!(fielder)), PlayDescription::Single) |
     map!(preceded!(tag!("D"), many0!(fielder)), PlayDescription::Double) |
     map!(preceded!(tag!("T"), many0!(fielder)), PlayDescription::Triple) |
@@ -631,8 +635,11 @@ mod tests {
         assert_parsed!(desc1, play_description(b"23"));
         assert_parsed!(PlayDescription::Balk, play_description(b"BK"));
         assert_parsed!(PlayDescription::PassedBall, play_description(b"PB"));
+        assert_parsed!(PlayDescription::GroundRuleDouble, play_description(b"DGR"));
         assert_parsed!(PlayDescription::WildPitch, play_description(b"WP"));
         assert_parsed!(PlayDescription::Strikeout(None), play_description(b"K"));
+        assert_parsed!(PlayDescription::IntentionalWalk, play_description(b"I"));
+        assert_parsed!(PlayDescription::IntentionalWalk, play_description(b"IW"));
         assert_parsed!(desc2, play_description(b"K23"));
         assert_parsed!(desc3, play_description(b"K+PB"));
         assert_parsed!(desc4, play_description(b"K+WP"));
@@ -656,6 +663,9 @@ mod tests {
         assert_parsed!(PlayDescription::HitByPitch, play_description(b"HP"));
         assert_parsed!(PlayDescription::NoPlay, play_description(b"NP"));
         assert_parsed!(PlayDescription::StolenBase(Base::Third), play_description(b"SB3"));
+        assert_parsed!(PlayDescription::CatcherInterference(1), play_description(b"C/E1"));
+        assert_parsed!(PlayDescription::CatcherInterference(2), play_description(b"C/E2"));
+        assert_parsed!(PlayDescription::CatcherInterference(3), play_description(b"C/E3"));
     }
 
     #[test]
