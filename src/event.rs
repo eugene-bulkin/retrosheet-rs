@@ -312,6 +312,12 @@ pub enum PlayDescription {
     GroundRuleDouble,
     /// An intentional walk.
     IntentionalWalk,
+    /// Defensive indifference: no attempt to prevent a stolen base. The advance field specifies
+    /// which base the runner went to.
+    DefensiveIndifference,
+    /// A base runner advance that is not covered by one of the other codes. A comment may be given
+    /// explaining the advance.
+    OtherAdvance,
     // TODO: Finish all of these!
 }
 

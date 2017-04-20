@@ -82,6 +82,7 @@ named!(play_desc_hr (&[u8]) -> PlayDescription, do_parse!(
 
 named!(play_description (&[u8]) -> PlayDescription, alt_complete!(
     map!(preceded!(tag!("SB"), base), PlayDescription::StolenBase) |
+    value!(PlayDescription::OtherAdvance, tag!("OA")) |
     value!(PlayDescription::IntentionalWalk, tag!("IW")) |
     value!(PlayDescription::IntentionalWalk, tag!("I")) |
     value!(PlayDescription::HitByPitch, tag!("HP")) |
@@ -89,6 +90,7 @@ named!(play_description (&[u8]) -> PlayDescription, alt_complete!(
     value!(PlayDescription::PassedBall, tag!("PB")) |
     value!(PlayDescription::WildPitch, tag!("WP")) |
     value!(PlayDescription::GroundRuleDouble, tag!("DGR")) |
+    value!(PlayDescription::DefensiveIndifference, tag!("DI")) |
     value!(PlayDescription::NoPlay, tag!("NP")) |
     map!(preceded!(tag!("FLE"), fielder), PlayDescription::FoulFlyBallError) |
     map!(preceded!(tag!("E"), fielder), PlayDescription::Error) |
@@ -666,6 +668,8 @@ mod tests {
         assert_parsed!(PlayDescription::CatcherInterference(1), play_description(b"C/E1"));
         assert_parsed!(PlayDescription::CatcherInterference(2), play_description(b"C/E2"));
         assert_parsed!(PlayDescription::CatcherInterference(3), play_description(b"C/E3"));
+        assert_parsed!(PlayDescription::DefensiveIndifference, play_description(b"DI"));
+        assert_parsed!(PlayDescription::OtherAdvance, play_description(b"OA"));
     }
 
     #[test]
