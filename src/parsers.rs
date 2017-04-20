@@ -80,6 +80,24 @@ named!(play_desc_hr (&[u8]) -> PlayDescription, do_parse!(
     })
 ));
 
+named!(play_desc_pickoff_cs (&[u8]) -> PlayDescription, do_parse!(
+    tag!("POCS") >>
+    base: base >>
+    tag!("(") >>
+    throws: many1!(complete!(fielder)) >>
+    tag!(")") >>
+    (PlayDescription::PickOffCaughtStealing(base, throws))
+));
+
+named!(play_desc_pickoff (&[u8]) -> PlayDescription, do_parse!(
+    tag!("PO") >>
+    base: base >>
+    tag!("(") >>
+    throws: field_parameters >>
+    tag!(")") >>
+    (PlayDescription::PickOff(base, throws))
+));
+
 named!(play_description (&[u8]) -> PlayDescription, alt_complete!(
     map!(preceded!(tag!("SB"), base), PlayDescription::StolenBase) |
     value!(PlayDescription::OtherAdvance, tag!("OA")) |
@@ -99,6 +117,8 @@ named!(play_description (&[u8]) -> PlayDescription, alt_complete!(
     map!(preceded!(tag!("S"), many0!(fielder)), PlayDescription::Single) |
     map!(preceded!(tag!("D"), many0!(fielder)), PlayDescription::Double) |
     map!(preceded!(tag!("T"), many0!(fielder)), PlayDescription::Triple) |
+    complete!(play_desc_pickoff_cs) |
+    complete!(play_desc_pickoff) |
     play_desc_hr |
     play_desc_strikeout |
     play_desc_walk |
@@ -670,6 +690,15 @@ mod tests {
         assert_parsed!(PlayDescription::CatcherInterference(3), play_description(b"C/E3"));
         assert_parsed!(PlayDescription::DefensiveIndifference, play_description(b"DI"));
         assert_parsed!(PlayDescription::OtherAdvance, play_description(b"OA"));
+        assert_parsed!(PlayDescription::PickOff(Base::Second, vec![
+            FieldParameter::Play(1),
+            FieldParameter::Play(4),
+        ]), play_description(b"PO2(14)"));
+        assert_parsed!(PlayDescription::PickOff(Base::First, vec![
+            FieldParameter::Error(3),
+        ]), play_description(b"PO1(E3)"));
+        assert_parsed!(PlayDescription::PickOffCaughtStealing(Base::Second, vec![1, 3, 6, 1]),
+            play_description(b"POCS2(1361)"));
     }
 
     #[test]

@@ -318,6 +318,13 @@ pub enum PlayDescription {
     /// A base runner advance that is not covered by one of the other codes. A comment may be given
     /// explaining the advance.
     OtherAdvance,
+    /// A runner was picked off a base, along with a throw and the fielder making the put out. May
+    /// instead just be an error (e.g. PO1(E3)), negating the out.
+    PickOff(Base, Vec<FieldParameter>),
+    /// A pick off that resulted in a caught stealing off of some base, along with a sequence of
+    /// throws that resulted in the out. Note that there wouldn't be errors here since the
+    /// implication is that they were caught.
+    PickOffCaughtStealing(Base, Vec<Fielder>),
     // TODO: Finish all of these!
 }
 
