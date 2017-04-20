@@ -25,7 +25,7 @@ impl ::std::fmt::Display for Error {
     fn fmt(&self, f: &mut ::std::fmt::Formatter) -> ::std::fmt::Result {
         match *self {
             Error::InvalidEvent(ref state, ref event) => {
-                write!(f, "the event {:?} is not valid in the {:?} state", event, state)
+                write!(f, "the event {:?} is not valid in the {} state", event, state)
             }
             Error::InvalidEventBeforeSub(ref event) => {
                 write!(f, "substitutions must be preceded by a play event; got {:?}", event)
@@ -71,6 +71,18 @@ pub enum State {
     Data,
     /// Done parsing.
     Done,
+}
+
+impl ::std::fmt::Display for State {
+    fn fmt(&self, f: &mut ::std::fmt::Formatter) -> ::std::fmt::Result {
+        match *self {
+            State::Info => write!(f, "metadata parsing"),
+            State::Starters => write!(f, "starting roster parsing"),
+            State::Plays => write!(f, "play-by-play parsing"),
+            State::Data => write!(f, "data parsing"),
+            State::Done => write!(f, "finished"),
+        }
+    }
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -386,5 +398,25 @@ mod tests {
             key: Info::HomeTeam,
             data: "bar".into()
         }));
+    }
+
+    #[test]
+    fn test_error_printing() {
+        let event = Event::Data {
+            data_type: DataEventType::EarnedRuns,
+            player: "fred103".into(),
+            value: "2".into()
+        };
+        assert_eq!("the requested command is not yet implemented".to_string(), format!("{}", Error::Unimplemented));
+        assert_eq!("parsing not fully done before attempted completion".to_string(), format!("{}", Error::ParsingIncomplete));
+        assert_eq!("parsing already completed".to_string(), format!("{}", Error::ParsingDone));
+        assert_eq!("substitutions must be preceded by a play event".to_string(), format!("{}", Error::NoEventBeforeSub));
+        assert_eq!(format!("substitutions must be preceded by a play event; got {:?}", event), format!("{}", Error::InvalidEventBeforeSub(event.clone())));
+
+        assert_eq!(format!("the event {:?} is not valid in the metadata parsing state", event), format!("{}", Error::InvalidEvent(State::Info, event.clone())));
+        assert_eq!(format!("the event {:?} is not valid in the starting roster parsing state", event), format!("{}", Error::InvalidEvent(State::Starters, event.clone())));
+        assert_eq!(format!("the event {:?} is not valid in the play-by-play parsing state", event), format!("{}", Error::InvalidEvent(State::Plays, event.clone())));
+        assert_eq!(format!("the event {:?} is not valid in the data parsing state", event), format!("{}", Error::InvalidEvent(State::Data, event.clone())));
+        assert_eq!(format!("the event {:?} is not valid in the finished state", event), format!("{}", Error::InvalidEvent(State::Done, event.clone())));
     }
 }
