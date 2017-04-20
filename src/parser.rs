@@ -155,7 +155,7 @@ data,er,foo,2";
 
     use ::event::{Advance, Base, DataEventType, Event, Info, Pitch, Player, PlayDescription,
                   PlayEvent, Team};
-    use ::game::{Game, Substitution};
+    use ::game::{Game, GameError, GameState, Substitution};
 
     fn expected_values() -> (HashMap<Info, String>, HashSet<Player>, Vec<Event>, Vec<Event>, Vec<Substitution>) {
         let expected_info = {
@@ -302,5 +302,24 @@ foo\n\n");
         parser.reset();
         let result = parser.parse(SHORT_GAME);
         assert!(result.is_ok(), "resetting parser did not allow new game: {}", result.err().unwrap());
+    }
+
+    #[test]
+    fn test_error_printing() {
+        let event = Event::Data {
+            data_type: DataEventType::EarnedRuns,
+            player: "fred103".into(),
+            value: "2".into()
+        };
+        let bytes = vec![1, 2, 3];
+
+        assert_eq!("game_id event was received before finishing game 'foo'".to_string(),
+        format!("{}", Error::UnexpectedGameId { current_game_id: "foo".into() }));
+        assert_eq!(format!("event {:?} was received before a game was registered", event), format!("{}", Error::NoGame(event.clone())));
+
+        assert_eq!(format!("bytes remaining after parsing completed: {:?}", bytes), format!("{}", Error::BytesRemaining(bytes.clone())));
+
+        assert_eq!(format!("the event {:?} is not valid in the starting roster parsing state", event),
+        format!("{}", Error::GameProcessingError(GameError::InvalidEvent(GameState::Starters, event.clone()))));
     }
 }
