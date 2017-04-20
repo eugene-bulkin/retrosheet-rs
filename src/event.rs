@@ -325,6 +325,30 @@ pub enum PlayDescription {
     /// throws that resulted in the out. Note that there wouldn't be errors here since the
     /// implication is that they were caught.
     PickOffCaughtStealing(Base, Vec<Fielder>),
+    /// A batter lining into a double play. Should be followed with an `LDP` modifier, but we don't
+    /// verify this.
+    LinedIntoDoublePlay {
+        /// The fielder who made the first out.
+        first_out: Fielder,
+        /// The throws for the second out.
+        second_out: Vec<Fielder>,
+        /// The base the second out was recorded on.
+        second_out_runner: Base,
+    },
+    /// A batter lining into a triple play. Should be followed with an `LTP` modifier, but we don't
+    /// verify this.
+    LinedIntoTriplePlay {
+        /// The fielder who made the first out.
+        first_out: Fielder,
+        /// The throws for the second out.
+        second_out: Vec<Fielder>,
+        /// The base the second out was recorded on.
+        second_out_runner: Base,
+        /// The throws for the third out.
+        third_out: Vec<Fielder>,
+        /// The base the third out was recorded on.
+        third_out_runner: Base,
+    }
     // TODO: Finish all of these!
 }
 

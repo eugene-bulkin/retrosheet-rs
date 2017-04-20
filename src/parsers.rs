@@ -98,6 +98,40 @@ named!(play_desc_pickoff (&[u8]) -> PlayDescription, do_parse!(
     (PlayDescription::PickOff(base, throws))
 ));
 
+named!(play_desc_ldp (&[u8]) -> PlayDescription, do_parse!(
+    first_out: fielder >>
+    tag!("(B)") >>
+    second_out: many1!(fielder) >>
+    tag!("(") >>
+    second_out_runner: base >>
+    tag!(")") >>
+    (PlayDescription::LinedIntoDoublePlay {
+        first_out: first_out,
+        second_out: second_out,
+        second_out_runner: second_out_runner,
+    })
+));
+
+named!(play_desc_ltp (&[u8]) -> PlayDescription, do_parse!(
+    first_out: fielder >>
+    tag!("(B)") >>
+    second_out: many1!(fielder) >>
+    tag!("(") >>
+    second_out_runner: base >>
+    tag!(")") >>
+    third_out: many1!(fielder) >>
+    tag!("(") >>
+    third_out_runner: base >>
+    tag!(")") >>
+    (PlayDescription::LinedIntoTriplePlay {
+        first_out: first_out,
+        second_out: second_out,
+        second_out_runner: second_out_runner,
+        third_out: third_out,
+        third_out_runner: third_out_runner,
+    })
+));
+
 named!(play_description (&[u8]) -> PlayDescription, alt_complete!(
     map!(preceded!(tag!("SB"), base), PlayDescription::StolenBase) |
     value!(PlayDescription::OtherAdvance, tag!("OA")) |
@@ -117,6 +151,8 @@ named!(play_description (&[u8]) -> PlayDescription, alt_complete!(
     map!(preceded!(tag!("S"), many0!(fielder)), PlayDescription::Single) |
     map!(preceded!(tag!("D"), many0!(fielder)), PlayDescription::Double) |
     map!(preceded!(tag!("T"), many0!(fielder)), PlayDescription::Triple) |
+    complete!(play_desc_ltp) |
+    complete!(play_desc_ldp) |
     complete!(play_desc_pickoff_cs) |
     complete!(play_desc_pickoff) |
     play_desc_hr |
@@ -652,6 +688,23 @@ mod tests {
         let desc3 = PlayDescription::Strikeout(Some(Box::new(PlayDescription::PassedBall)));
         let desc4 = PlayDescription::Strikeout(Some(Box::new(PlayDescription::WildPitch)));
         let desc5 = PlayDescription::Walk(Some(Box::new(PlayDescription::WildPitch)));
+        let desc6 = PlayDescription::LinedIntoDoublePlay {
+            first_out: 8,
+            second_out: vec![8, 4],
+            second_out_runner: Base::Second,
+        };
+        let desc7 = PlayDescription::LinedIntoDoublePlay {
+            first_out: 3,
+            second_out: vec![3],
+            second_out_runner: Base::First,
+        };
+        let desc8 = PlayDescription::LinedIntoTriplePlay {
+            first_out: 1,
+            second_out: vec![1, 6],
+            second_out_runner: Base::Second,
+            third_out: vec![6, 3],
+            third_out_runner: Base::First,
+        };
         assert_parsed!(PlayDescription::GIDP(vec![6, 4, 3], Base::Second), play_description(b"64(2)3"));
         assert_parsed!(PlayDescription::FielderSequence(vec![5], None), play_description(b"5"));
         assert_parsed!(desc1, play_description(b"23"));
@@ -699,6 +752,9 @@ mod tests {
         ]), play_description(b"PO1(E3)"));
         assert_parsed!(PlayDescription::PickOffCaughtStealing(Base::Second, vec![1, 3, 6, 1]),
             play_description(b"POCS2(1361)"));
+        assert_parsed!(desc6, play_description(b"8(B)84(2)"));
+        assert_parsed!(desc7, play_description(b"3(B)3(1)"));
+        assert_parsed!(desc8, play_description(b"1(B)16(2)63(1)"));
     }
 
     #[test]
