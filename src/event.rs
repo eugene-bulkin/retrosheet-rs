@@ -271,6 +271,20 @@ pub enum PlayDescription {
     FielderSequence(Vec<Fielder>, Option<Base>),
     /// The batter grounded into a double play, with the base the first out was recorded on.
     GIDP(Vec<Fielder>, Base),
+    /// The batter grounded into a triple play. We provide the assists for the first out (and the
+    /// base the first out was recorded on), the second out, and the putout.
+    GITP {
+        /// The throws for the first out.
+        first_assists: Vec<Fielder>,
+        /// The base the first out was recorded on.
+        first_out: Base,
+        /// The throws for the second out.
+        second_assists: Vec<Fielder>,
+        /// The base the second out was recorded on.
+        second_out: Base,
+        /// The putout fielder.
+        putout: Fielder,
+    },
     /// A fielder's choice, where the fielder given is the fielder first fielding the ball. The
     /// batter advance to first is understood if it is not given explicitly.
     FieldersChoice(Fielder),
@@ -349,7 +363,6 @@ pub enum PlayDescription {
         /// The base the third out was recorded on.
         third_out_runner: Base,
     }
-    // TODO: Finish all of these!
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
