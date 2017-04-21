@@ -155,9 +155,9 @@ data,er,foo,2";
 
     use ::event::{Advance, Base, DataEventType, Event, Info, Pitch, Player, PlayDescription,
                   PlayEvent, Team};
-    use ::game::{Game, GameError, GameState, Substitution};
+    use ::game::{EventWithComments, Game, GameError, GameState, Substitution};
 
-    fn expected_values() -> (HashMap<Info, String>, HashSet<Player>, Vec<Event>, Vec<Event>, Vec<Substitution>) {
+    fn expected_values() -> (HashMap<Info, String>, HashSet<Player>, Vec<EventWithComments>, Vec<Event>, Vec<Substitution>) {
         let expected_info = {
             let mut map = HashMap::new();
             map.insert(Info::Number, "0".into());
@@ -173,7 +173,7 @@ data,er,foo,2";
             }
         ].into_iter());
         let expected_plays = vec![
-            Event::Play {
+            (Event::Play {
                 inning: 4,
                 team: Team::Home,
                 player: "meh".into(),
@@ -195,7 +195,7 @@ data,er,foo,2";
                         }
                     ],
                 },
-            }
+            }, vec![])
             // The NP should be gone because of the sub!
         ];
         let expected_data = vec![

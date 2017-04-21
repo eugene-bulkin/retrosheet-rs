@@ -803,7 +803,13 @@ pub enum Event {
         player: PlayerId,
         /// The actual data value.
         value: String,
-    }
+    },
+    /// A record describing a comment of some sort. Can be just an additional note to an unusual
+    /// play, or a description of a review.
+    Comment {
+        /// The comment itself.
+        comment: String,
+    },
 }
 
 #[cfg(test)]

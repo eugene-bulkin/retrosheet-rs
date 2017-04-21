@@ -368,6 +368,15 @@ named!(player_entry (&[u8]) -> Player, do_parse!(
     })
 ));
 
+named!(comment (&[u8]) -> Event, do_parse!(
+    terminated!(tag!("com"), tag!(",")) >>
+    tag!("\"") >>
+    comment: map!(map_res!(take_until_and_consume!("\""), str::from_utf8), String::from) >>
+    (Event::Comment {
+        comment: comment,
+    })
+));
+
 named!(start (&[u8]) -> Event, do_parse!(
     terminated!(tag!("start"), tag!(",")) >>
     player: player_entry >>
@@ -406,7 +415,7 @@ named!(version (&[u8]) -> Event, do_parse!(
 ));
 
 named!(pub event (&[u8]) -> Event, do_parse!(
-    event: alt_complete!(game_id | version | play | info | start | sub | data) >>
+    event: alt_complete!(game_id | version | play | info | start | sub | data | comment) >>
     alt!(eof!() | tag!("\n") | tag!("\r\n")) >>
     (event)
 ));
@@ -973,5 +982,11 @@ mod tests {
         assert_parsed!(parsed2, play(play2));
         assert_parsed!(parsed3, play(play3));
         assert_parsed!(parsed4, play(play4));
+    }
+
+    #[test]
+    fn test_comment() {
+        assert_parsed!(Event::Comment { comment: "foo".into() }, comment(b"com,\"foo\""));
+        assert!(comment(b"com,foo").is_err());
     }
 }
