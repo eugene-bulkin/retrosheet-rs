@@ -4,6 +4,9 @@ use std::collections::{HashMap, HashSet};
 
 use ::event::{Event, Info, PlayDescription, Player, Team};
 
+/// An event with any comments that may correspond to it.
+pub type EventWithComments = (Event, Vec<Event>);
+
 #[derive(Clone, Debug, PartialEq)]
 /// An error that occurs while processing a game.
 pub enum Error {
@@ -94,8 +97,8 @@ pub struct Game {
     pub info: HashMap<Info, String>,
     /// The players that started the game.
     pub starters: HashSet<Player>,
-    /// The sequence of plays that occurred in the game.
-    pub plays: Vec<Event>,
+    /// The sequence of plays that occurred in the game, along with comments, if they exist.
+    pub plays: Vec<EventWithComments>,
     /// The set of substitutions that happened during the game. This can be used to construct a full
     /// list of who was playing during what parts of the game.
     pub substitutions: Vec<Substitution>,
@@ -155,7 +158,7 @@ impl Game {
     fn process_play_event(&mut self, event: Event) -> Result<(), Error> {
         match event {
             Event::Play { .. } => {
-                self.plays.push(event);
+                self.plays.push((event, vec![]));
                 Ok(())
             }
             Event::Sub { player } => {
@@ -164,10 +167,10 @@ impl Game {
                 let last_evt = self.plays.pop();
                 match last_evt {
                     Some(event) => {
-                        match event {
+                        match event.0 {
                             Event::Play { ref inning, ref team, event: ref play_event, .. } => {
                                 if play_event.description != PlayDescription::NoPlay {
-                                    Err(Error::InvalidEventBeforeSub(event.clone()))
+                                    Err(Error::InvalidEventBeforeSub(event.0.clone()))
                                 } else {
                                     self.substitutions.push(Substitution {
                                         inning: *inning,
@@ -177,17 +180,22 @@ impl Game {
                                     Ok(())
                                 }
                             }
-                            _ => Err(Error::InvalidEventBeforeSub(event.clone()))
+                            _ => Err(Error::InvalidEventBeforeSub(event.0.clone()))
                         }
                     }
                     None => Err(Error::NoEventBeforeSub),
                 }
-            }
+            },
+            Event::Comment { .. } => {
+                let len = self.plays.len();
+                self.plays[len - 1].1.push(event);
+                Ok(())
+            },
             Event::Data { .. } => {
                 // Done with plays, so collect data.
                 self.state = State::Data;
                 self.process_event(event)
-            }
+            },
             _ => {
                 Err(Error::InvalidEvent(self.state, event.clone()))
             }
@@ -348,16 +356,21 @@ mod tests {
             player: "fred103".into(),
             value: "2".into()
         };
+        let comment = Event::Comment {
+            comment: "foo".into(),
+        };
 
         {
             let mut game = Game::new("foo");
             game.state = State::Plays;
             assert_eq!(Ok(()), game.process_event(event1.clone()));
-            assert_eq!(vec![event1.clone()], game.plays);
+            assert_eq!(vec![(event1.clone(), vec![])], game.plays);
+            assert_eq!(Ok(()), game.process_event(comment.clone()));
+            assert_eq!(vec![(event1.clone(), vec![comment.clone()])], game.plays);
 
             assert_eq!(Ok(()), game.process_event(event_np.clone()));
             assert_eq!(Ok(()), game.process_event(event2.clone()));
-            assert_eq!(vec![event1.clone()], game.plays);
+            assert_eq!(vec![(event1.clone(), vec![comment.clone()])], game.plays);
 
             assert_eq!(vec![Substitution {
                 inning: 2,
@@ -373,7 +386,7 @@ mod tests {
             let mut game = Game::new("foo");
             game.state = State::Plays;
             assert_eq!(Ok(()), game.process_event(event1.clone()));
-            assert_eq!(vec![event1.clone()], game.plays);
+            assert_eq!(vec![(event1.clone(), vec![])], game.plays);
 
             assert_eq!(Err(Error::InvalidEventBeforeSub(event1.clone())), game.process_event(event2.clone()));
         }

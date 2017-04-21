@@ -100,6 +100,7 @@ play,6,1,heywj001,32,CBFBBS,K
 play,6,1,bryak001,11,BSX,E5/G.B-2
 play,6,1,rizza001,12,CFFBX,7/F-
 play,6,1,zobrb001,01,CX,53/G
+com,\"something happened\"
 play,7,0,duvaa001,00,,NP
 sub,cahit001,\"Trevor Cahill\",1,9,1
 play,7,0,duvaa001,10,.BX,D7/L
