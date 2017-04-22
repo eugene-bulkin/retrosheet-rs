@@ -835,6 +835,15 @@ pub enum Event {
         /// The hand with which they are pitching for this instance.
         hand: Hand,
     },
+    /// A record used when teams bat out of order. The normal assumption is that proper lineup
+    /// sequence is followed, therefore, it is necessary to have some special indication when this
+    /// is violated.
+    LineupAdjustment {
+        /// The team which batted out of order.
+        team: Team,
+        /// The batting order position.
+        position: u8,
+    },
 }
 
 #[cfg(test)]
