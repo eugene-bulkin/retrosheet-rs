@@ -88,7 +88,7 @@ impl ::std::fmt::Display for State {
     }
 }
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug)]
 /// An MLB game.
 pub struct Game {
     /// The game id.
@@ -106,6 +106,19 @@ pub struct Game {
     pub data: Vec<Event>,
     state: State,
 }
+
+impl PartialEq for Game {
+    fn eq(&self, other: &Game) -> bool {
+        self.id == other.id &&
+            self.info == other.info &&
+            self.starters == other.starters &&
+            self.plays == other.plays &&
+            self.substitutions == other.substitutions &&
+            self.data == other.data
+    }
+}
+
+impl Eq for Game {}
 
 impl Game {
     /// Instantiate a new game object in the initial state.
@@ -254,7 +267,8 @@ mod tests {
     use std::collections::HashSet;
     use std::iter::FromIterator;
 
-    use ::event::{DataEventType, Event, Hand, Info, Player, PlayDescription, PlayEvent, Team};
+    use ::event::{Advance, Base, DataEventType, Event, Hand, Info, Pitch, Player, PlayDescription,
+                  PlayEvent, Team};
 
     #[test]
     fn test_process_info() {
@@ -421,6 +435,43 @@ mod tests {
 
             assert_eq!(Err(Error::NoEventBeforeSub), game.process_event(event2.clone()));
         }
+
+        {
+            let mut game = Game::new("foo");
+            game.state = State::Plays;
+            let info = Event::Info {
+                key: Info::HomeTeam,
+                data: "bar".into()
+            };
+
+            assert_eq!(Err(Error::InvalidEvent(State::Plays, info.clone())), game.process_event(info.clone()));
+        }
+    }
+
+    #[test]
+    fn test_data() {
+        let data = Event::Data {
+            data_type: DataEventType::EarnedRuns,
+            player: "foo".into(),
+            value: "3".into(),
+        };
+        let info = Event::Info {
+            key: Info::HomeTeam,
+            data: "bar".into()
+        };
+
+        {
+            let mut game = Game::new("foo");
+            game.state = State::Data;
+            assert_eq!(Ok(()), game.process_event(data.clone()));
+            assert_eq!(vec![data.clone()], game.data);
+        }
+
+        {
+            let mut game = Game::new("foo");
+            game.state = State::Data;
+            assert_eq!(Err(Error::InvalidEvent(State::Data, info.clone())), game.process_event(info.clone()));
+        }
     }
 
     #[test]
@@ -455,5 +506,89 @@ mod tests {
         assert_eq!(format!("the event {:?} is not valid in the play-by-play parsing state", event), format!("{}", Error::InvalidEvent(State::Plays, event.clone())));
         assert_eq!(format!("the event {:?} is not valid in the data parsing state", event), format!("{}", Error::InvalidEvent(State::Data, event.clone())));
         assert_eq!(format!("the event {:?} is not valid in the finished state", event), format!("{}", Error::InvalidEvent(State::Done, event.clone())));
+    }
+
+    #[test]
+    fn test_eq() {
+        let info = {
+            let mut map = HashMap::new();
+            map.insert(Info::Number, "0".into());
+            map
+        };
+        let starters = HashSet::from_iter(vec![
+            Player {
+                id: "foo".into(),
+                name: "Bar".into(),
+                team: Team::Visiting,
+                batting_pos: 1,
+                fielding_pos: 6,
+            }
+        ].into_iter());
+        let plays = vec![
+            (Event::Play {
+                inning: 4,
+                team: Team::Home,
+                player: "meh".into(),
+                count: Some((1, 2)),
+                pitches: vec![
+                    Pitch::CalledStrike,
+                    Pitch::CalledStrike,
+                    Pitch::BallInPlayBatter,
+                ],
+                event: PlayEvent {
+                    description: PlayDescription::Single(vec![8]),
+                    modifiers: vec![],
+                    advances: vec![
+                        Advance {
+                            from: Base::Home,
+                            to: Base::Second,
+                            success: true,
+                            parameters: vec![],
+                        }
+                    ],
+                },
+            }, vec![])
+        ];
+        let data = vec![
+            Event::Data {
+                data_type: DataEventType::EarnedRuns,
+                player: "foo".into(),
+                value: "2".into(),
+            }
+        ];
+        let substitutions = vec![
+            Substitution {
+                inning: 4,
+                batting_team: Team::Home,
+                player: Player {
+                    id: "buz".into(),
+                    name: "Bax".into(),
+                    team: Team::Home,
+                    batting_pos: 3,
+                    fielding_pos: 4,
+                },
+            }
+        ];
+
+        let game1 = Game {
+            id: "foo".into(),
+            info: info.clone(),
+            starters: starters.clone(),
+            plays: plays.clone(),
+            substitutions: substitutions.clone(),
+            data: data.clone(),
+            state: State::Starters,
+        };
+        let game2 = Game {
+            id: "foo".into(),
+            info: info.clone(),
+            starters: starters.clone(),
+            plays: plays.clone(),
+            substitutions: substitutions.clone(),
+            data: data.clone(),
+            state: State::Plays,
+        };
+
+        assert_eq!(game1, game2);
     }
 }
