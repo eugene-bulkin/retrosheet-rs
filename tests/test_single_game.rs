@@ -149,6 +149,7 @@ play,9,0,diazj005,00,,NP
 sub,sches001,\"Scott Schebler\",0,8,11
 badj,sches001,R
 padj,rondh001,L
+ladj,1,7
 play,9,0,sches001,12,.CFFBC,K
 data,er,finnb001,2
 data,er,cothc001,0

@@ -393,6 +393,17 @@ named!(padj (&[u8]) -> Event, do_parse!(
     })
 ));
 
+named!(ladj (&[u8]) -> Event, do_parse!(
+    terminated!(tag!("ladj"), tag!(",")) >>
+    team: team >>
+    tag!(",") >>
+    pos: bytes_to_u8 >>
+    (Event::LineupAdjustment {
+        team: team,
+        position: pos,
+    })
+));
+
 named!(comment (&[u8]) -> Event, do_parse!(
     terminated!(tag!("com"), tag!(",")) >>
     tag!("\"") >>
@@ -441,7 +452,7 @@ named!(version (&[u8]) -> Event, do_parse!(
 
 named!(pub event (&[u8]) -> Event, do_parse!(
     event: alt_complete!(game_id | version | play | info | start | sub | data | comment |
-                         badj | padj) >>
+                         badj | padj | ladj) >>
     alt!(eof!() | tag!("\n") | tag!("\r\n")) >>
     (event)
 ));
@@ -1031,5 +1042,10 @@ mod tests {
             player: "harrg001".into(),
             hand: Hand::Left,
         }, padj(b"padj,harrg001,L"));
+
+        assert_parsed!(Event::LineupAdjustment {
+            team: Team::Home,
+            position: 7,
+        }, ladj(b"ladj,1,7"));
     }
 }

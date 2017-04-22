@@ -161,7 +161,8 @@ impl Game {
                 self.plays.push((event, vec![]));
                 Ok(())
             }
-            Event::BattingAdjustment { .. } | Event::PitchingAdjustment { .. } => {
+            Event::BattingAdjustment { .. } | Event::PitchingAdjustment { .. } |
+            Event::LineupAdjustment { .. } => {
                 self.plays.push((event, vec![]));
                 Ok(())
             }
@@ -372,6 +373,10 @@ mod tests {
             player: "harrg001".into(),
             hand: Hand::Left,
         };
+        let ladj = Event::LineupAdjustment {
+            team: Team::Home,
+            position: 7,
+        };
 
         {
             let mut game = Game::new("foo");
@@ -382,12 +387,14 @@ mod tests {
             assert_eq!(vec![(event1.clone(), vec![comment.clone()])], game.plays);
             assert_eq!(Ok(()), game.process_event(badj.clone()));
             assert_eq!(Ok(()), game.process_event(padj.clone()));
+            assert_eq!(Ok(()), game.process_event(ladj.clone()));
 
             assert_eq!(Ok(()), game.process_event(event_np.clone()));
             assert_eq!(Ok(()), game.process_event(event2.clone()));
             assert_eq!(vec![(event1.clone(), vec![comment.clone()]),
                             (badj.clone(), vec![]),
-                            (padj.clone(), vec![])], game.plays);
+                            (padj.clone(), vec![]),
+                            (ladj.clone(), vec![])], game.plays);
 
             assert_eq!(vec![Substitution {
                 inning: 2,
