@@ -2,8 +2,8 @@ use nom::{alpha, alphanumeric, digit, not_line_ending};
 
 use std::str;
 
-use ::event::{Advance, AdvanceParameter, Base, Event, Fielder, FieldParameter, HitType, HitLocation,
-              Pitch, Player, PlayDescription, PlayEvent, PlayModifier, Team};
+use ::event::{Advance, AdvanceParameter, Base, Event, Fielder, FieldParameter, Hand, HitType,
+              HitLocation, Pitch, Player, PlayDescription, PlayEvent, PlayModifier, Team};
 
 macro_rules! assert_parsed {
     ($expected: expr, $result: expr) => (
@@ -368,6 +368,31 @@ named!(player_entry (&[u8]) -> Player, do_parse!(
     })
 ));
 
+named!(hand (&[u8]) -> Hand, alt!(
+    value!(Hand::Left, tag!("L")) |
+    value!(Hand::Right, tag!("R"))
+));
+
+named!(badj (&[u8]) -> Event, do_parse!(
+    terminated!(tag!("badj"), tag!(",")) >>
+    player: map!(map_res!(take_until_and_consume!(","), str::from_utf8), String::from) >>
+    hand: hand >>
+    (Event::BattingAdjustment {
+        player: player,
+        hand: hand,
+    })
+));
+
+named!(padj (&[u8]) -> Event, do_parse!(
+    terminated!(tag!("padj"), tag!(",")) >>
+    player: map!(map_res!(take_until_and_consume!(","), str::from_utf8), String::from) >>
+    hand: hand >>
+    (Event::PitchingAdjustment {
+        player: player,
+        hand: hand,
+    })
+));
+
 named!(comment (&[u8]) -> Event, do_parse!(
     terminated!(tag!("com"), tag!(",")) >>
     tag!("\"") >>
@@ -415,7 +440,8 @@ named!(version (&[u8]) -> Event, do_parse!(
 ));
 
 named!(pub event (&[u8]) -> Event, do_parse!(
-    event: alt_complete!(game_id | version | play | info | start | sub | data | comment) >>
+    event: alt_complete!(game_id | version | play | info | start | sub | data | comment |
+                         badj | padj) >>
     alt!(eof!() | tag!("\n") | tag!("\r\n")) >>
     (event)
 ));
@@ -426,8 +452,8 @@ mod tests {
 
     use nom::IResult::*;
 
-    use ::event::{Advance, AdvanceParameter, Base, DataEventType, Event, FieldParameter, HitType,
-                  HitLocation, Pitch, PlayEvent, PlayDescription, PlayModifier, Team};
+    use ::event::{Advance, AdvanceParameter, Base, DataEventType, Event, FieldParameter, Hand,
+                  HitType, HitLocation, Pitch, PlayEvent, PlayDescription, PlayModifier, Team};
 
     #[test]
     fn test_version() {
@@ -988,5 +1014,22 @@ mod tests {
     fn test_comment() {
         assert_parsed!(Event::Comment { comment: "foo".into() }, comment(b"com,\"foo\""));
         assert!(comment(b"com,foo").is_err());
+    }
+
+    #[test]
+    fn test_adjs() {
+        assert_parsed!(Event::BattingAdjustment {
+            player: "bonib001".into(),
+            hand: Hand::Right,
+        }, badj(b"badj,bonib001,R"));
+        assert_parsed!(Event::BattingAdjustment {
+            player: "dempr101".into(),
+            hand: Hand::Left,
+        }, badj(b"badj,dempr101,L"));
+
+        assert_parsed!(Event::PitchingAdjustment {
+            player: "harrg001".into(),
+            hand: Hand::Left,
+        }, padj(b"padj,harrg001,L"));
     }
 }

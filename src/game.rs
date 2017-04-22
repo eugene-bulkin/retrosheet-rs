@@ -161,6 +161,10 @@ impl Game {
                 self.plays.push((event, vec![]));
                 Ok(())
             }
+            Event::BattingAdjustment { .. } | Event::PitchingAdjustment { .. } => {
+                self.plays.push((event, vec![]));
+                Ok(())
+            }
             Event::Sub { player } => {
                 // We actually get rid of the last play, because it will always be a NoPlay without
                 // any pitch count. If not, it's an error and parsing failed anyway.
@@ -185,17 +189,17 @@ impl Game {
                     }
                     None => Err(Error::NoEventBeforeSub),
                 }
-            },
+            }
             Event::Comment { .. } => {
                 let len = self.plays.len();
                 self.plays[len - 1].1.push(event);
                 Ok(())
-            },
+            }
             Event::Data { .. } => {
                 // Done with plays, so collect data.
                 self.state = State::Data;
                 self.process_event(event)
-            },
+            }
             _ => {
                 Err(Error::InvalidEvent(self.state, event.clone()))
             }
@@ -249,7 +253,7 @@ mod tests {
     use std::collections::HashSet;
     use std::iter::FromIterator;
 
-    use ::event::{DataEventType, Event, Info, Player, PlayDescription, PlayEvent, Team};
+    use ::event::{DataEventType, Event, Hand, Info, Player, PlayDescription, PlayEvent, Team};
 
     #[test]
     fn test_process_info() {
@@ -356,8 +360,17 @@ mod tests {
             player: "fred103".into(),
             value: "2".into()
         };
+
         let comment = Event::Comment {
             comment: "foo".into(),
+        };
+        let badj = Event::BattingAdjustment {
+            player: "bonib001".into(),
+            hand: Hand::Right,
+        };
+        let padj = Event::PitchingAdjustment {
+            player: "harrg001".into(),
+            hand: Hand::Left,
         };
 
         {
@@ -367,10 +380,14 @@ mod tests {
             assert_eq!(vec![(event1.clone(), vec![])], game.plays);
             assert_eq!(Ok(()), game.process_event(comment.clone()));
             assert_eq!(vec![(event1.clone(), vec![comment.clone()])], game.plays);
+            assert_eq!(Ok(()), game.process_event(badj.clone()));
+            assert_eq!(Ok(()), game.process_event(padj.clone()));
 
             assert_eq!(Ok(()), game.process_event(event_np.clone()));
             assert_eq!(Ok(()), game.process_event(event2.clone()));
-            assert_eq!(vec![(event1.clone(), vec![comment.clone()])], game.plays);
+            assert_eq!(vec![(event1.clone(), vec![comment.clone()]),
+                            (badj.clone(), vec![]),
+                            (padj.clone(), vec![])], game.plays);
 
             assert_eq!(vec![Substitution {
                 inning: 2,

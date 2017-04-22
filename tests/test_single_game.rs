@@ -147,6 +147,8 @@ play,9,0,brucj001,02,...CFC,K
 play,9,0,duvaa001,12,CSBC,K
 play,9,0,diazj005,00,,NP
 sub,sches001,\"Scott Schebler\",0,8,11
+badj,sches001,R
+padj,rondh001,L
 play,9,0,sches001,12,.CFFBC,K
 data,er,finnb001,2
 data,er,cothc001,0
