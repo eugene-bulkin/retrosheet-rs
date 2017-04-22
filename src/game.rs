@@ -267,7 +267,8 @@ mod tests {
     use std::collections::HashSet;
     use std::iter::FromIterator;
 
-    use ::event::{DataEventType, Event, Hand, Info, Player, PlayDescription, PlayEvent, Team};
+    use ::event::{Advance, Base, DataEventType, Event, Hand, Info, Pitch, Player, PlayDescription,
+                  PlayEvent, Team};
 
     #[test]
     fn test_process_info() {
@@ -505,5 +506,89 @@ mod tests {
         assert_eq!(format!("the event {:?} is not valid in the play-by-play parsing state", event), format!("{}", Error::InvalidEvent(State::Plays, event.clone())));
         assert_eq!(format!("the event {:?} is not valid in the data parsing state", event), format!("{}", Error::InvalidEvent(State::Data, event.clone())));
         assert_eq!(format!("the event {:?} is not valid in the finished state", event), format!("{}", Error::InvalidEvent(State::Done, event.clone())));
+    }
+
+    #[test]
+    fn test_eq() {
+        let info = {
+            let mut map = HashMap::new();
+            map.insert(Info::Number, "0".into());
+            map
+        };
+        let starters = HashSet::from_iter(vec![
+            Player {
+                id: "foo".into(),
+                name: "Bar".into(),
+                team: Team::Visiting,
+                batting_pos: 1,
+                fielding_pos: 6,
+            }
+        ].into_iter());
+        let plays = vec![
+            (Event::Play {
+                inning: 4,
+                team: Team::Home,
+                player: "meh".into(),
+                count: Some((1, 2)),
+                pitches: vec![
+                    Pitch::CalledStrike,
+                    Pitch::CalledStrike,
+                    Pitch::BallInPlayBatter,
+                ],
+                event: PlayEvent {
+                    description: PlayDescription::Single(vec![8]),
+                    modifiers: vec![],
+                    advances: vec![
+                        Advance {
+                            from: Base::Home,
+                            to: Base::Second,
+                            success: true,
+                            parameters: vec![],
+                        }
+                    ],
+                },
+            }, vec![])
+        ];
+        let data = vec![
+            Event::Data {
+                data_type: DataEventType::EarnedRuns,
+                player: "foo".into(),
+                value: "2".into(),
+            }
+        ];
+        let substitutions = vec![
+            Substitution {
+                inning: 4,
+                batting_team: Team::Home,
+                player: Player {
+                    id: "buz".into(),
+                    name: "Bax".into(),
+                    team: Team::Home,
+                    batting_pos: 3,
+                    fielding_pos: 4,
+                },
+            }
+        ];
+
+        let game1 = Game {
+            id: "foo".into(),
+            info: info.clone(),
+            starters: starters.clone(),
+            plays: plays.clone(),
+            substitutions: substitutions.clone(),
+            data: data.clone(),
+            state: State::Starters,
+        };
+        let game2 = Game {
+            id: "foo".into(),
+            info: info.clone(),
+            starters: starters.clone(),
+            plays: plays.clone(),
+            substitutions: substitutions.clone(),
+            data: data.clone(),
+            state: State::Plays,
+        };
+
+        assert_eq!(game1, game2);
     }
 }
