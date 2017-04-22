@@ -427,6 +427,9 @@ mod tests {
             assert_eq!(vec![(event1.clone(), vec![])], game.plays);
 
             assert_eq!(Err(Error::InvalidEventBeforeSub(event1.clone())), game.process_event(event2.clone()));
+
+            assert_eq!(Ok(()), game.process_event(badj.clone()));
+            assert_eq!(Err(Error::InvalidEventBeforeSub(badj.clone())), game.process_event(event2.clone()));
         }
 
         {
