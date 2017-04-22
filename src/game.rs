@@ -88,7 +88,7 @@ impl ::std::fmt::Display for State {
     }
 }
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug)]
 /// An MLB game.
 pub struct Game {
     /// The game id.
@@ -106,6 +106,19 @@ pub struct Game {
     pub data: Vec<Event>,
     state: State,
 }
+
+impl PartialEq for Game {
+    fn eq(&self, other: &Game) -> bool {
+        self.id == other.id &&
+            self.info == other.info &&
+            self.starters == other.starters &&
+            self.plays == other.plays &&
+            self.substitutions == other.substitutions &&
+            self.data == other.data
+    }
+}
+
+impl Eq for Game {}
 
 impl Game {
     /// Instantiate a new game object in the initial state.
@@ -420,6 +433,43 @@ mod tests {
             game.state = State::Plays;
 
             assert_eq!(Err(Error::NoEventBeforeSub), game.process_event(event2.clone()));
+        }
+
+        {
+            let mut game = Game::new("foo");
+            game.state = State::Plays;
+            let info = Event::Info {
+                key: Info::HomeTeam,
+                data: "bar".into()
+            };
+
+            assert_eq!(Err(Error::InvalidEvent(State::Plays, info.clone())), game.process_event(info.clone()));
+        }
+    }
+
+    #[test]
+    fn test_data() {
+        let data = Event::Data {
+            data_type: DataEventType::EarnedRuns,
+            player: "foo".into(),
+            value: "3".into(),
+        };
+        let info = Event::Info {
+            key: Info::HomeTeam,
+            data: "bar".into()
+        };
+
+        {
+            let mut game = Game::new("foo");
+            game.state = State::Data;
+            assert_eq!(Ok(()), game.process_event(data.clone()));
+            assert_eq!(vec![data.clone()], game.data);
+        }
+
+        {
+            let mut game = Game::new("foo");
+            game.state = State::Data;
+            assert_eq!(Err(Error::InvalidEvent(State::Data, info.clone())), game.process_event(info.clone()));
         }
     }
 

@@ -155,15 +155,16 @@ data,er,foo,2";
 
     use ::event::{Advance, Base, DataEventType, Event, Info, Pitch, Player, PlayDescription,
                   PlayEvent, Team};
-    use ::game::{EventWithComments, Game, GameError, GameState, Substitution};
+    use ::game::{Game, GameError, GameState, Substitution};
 
-    fn expected_values() -> (HashMap<Info, String>, HashSet<Player>, Vec<EventWithComments>, Vec<Event>, Vec<Substitution>) {
-        let expected_info = {
+    fn short_game() -> Game {
+        let mut game = Game::new("CHN201506130");
+        game.info = {
             let mut map = HashMap::new();
             map.insert(Info::Number, "0".into());
             map
         };
-        let expected_starters = HashSet::from_iter(vec![
+        game.starters = HashSet::from_iter(vec![
             Player {
                 id: "foo".into(),
                 name: "Bar".into(),
@@ -172,7 +173,7 @@ data,er,foo,2";
                 fielding_pos: 6,
             }
         ].into_iter());
-        let expected_plays = vec![
+        game.plays = vec![
             (Event::Play {
                 inning: 4,
                 team: Team::Home,
@@ -198,14 +199,14 @@ data,er,foo,2";
             }, vec![])
             // The NP should be gone because of the sub!
         ];
-        let expected_data = vec![
+        game.data = vec![
             Event::Data {
                 data_type: DataEventType::EarnedRuns,
                 player: "foo".into(),
                 value: "2".into(),
             }
         ];
-        let expected_substitutions = vec![
+        game.substitutions = vec![
             Substitution {
                 inning: 4,
                 batting_team: Team::Home,
@@ -219,30 +220,26 @@ data,er,foo,2";
             }
         ];
 
-        (expected_info, expected_starters, expected_plays, expected_data, expected_substitutions)
+        game
     }
 
     #[test]
     fn test_game_parse() {
-        let (expected_info, expected_starters, expected_plays, expected_data, expected_substitutions) = expected_values();
+        let game_expected = short_game();
 
         let mut parser = Parser::new();
         assert_eq!(State::Empty, parser.state);
 
         let result = parser.parse(SHORT_GAME).unwrap();
         let ref game_result: Game = result[0];
-        assert_eq!(expected_info, game_result.info);
-        assert_eq!(expected_starters, game_result.starters);
-        assert_eq!(expected_plays, game_result.plays);
-        assert_eq!(expected_substitutions, game_result.substitutions);
-        assert_eq!(expected_data, game_result.data);
+        assert_eq!(game_expected, *game_result);
 
         assert_eq!(State::Empty, parser.state);
     }
 
     #[test]
     fn test_multiple_games_parse() {
-        let (expected_info, expected_starters, expected_plays, expected_data, expected_substitutions) = expected_values();
+        let game_expected = short_game();
 
         let buf = {
             let mut buf: Vec<u8> = SHORT_GAME.to_vec();
@@ -257,17 +254,8 @@ data,er,foo,2";
         let ref game_result1: Game = result[0];
         let ref game_result2: Game = result[1];
 
-        assert_eq!(expected_info, game_result1.info);
-        assert_eq!(expected_starters, game_result1.starters);
-        assert_eq!(expected_plays, game_result1.plays);
-        assert_eq!(expected_substitutions, game_result1.substitutions);
-        assert_eq!(expected_data, game_result1.data);
-
-        assert_eq!(expected_info, game_result2.info);
-        assert_eq!(expected_starters, game_result2.starters);
-        assert_eq!(expected_plays, game_result2.plays);
-        assert_eq!(expected_substitutions, game_result2.substitutions);
-        assert_eq!(expected_data, game_result2.data);
+        assert_eq!(game_expected, *game_result1);
+        assert_eq!(game_expected, *game_result2);
     }
 
     #[test]
