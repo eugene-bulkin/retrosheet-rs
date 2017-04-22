@@ -160,7 +160,11 @@ impl Game {
             Event::Play { .. } => {
                 self.plays.push((event, vec![]));
                 Ok(())
-            }
+            },
+            Event::BattingAdjustment { .. } | Event::PitchingAdjustment { .. } => {
+                self.plays.push((event, vec![]));
+                Ok(())
+            },
             Event::Sub { player } => {
                 // We actually get rid of the last play, because it will always be a NoPlay without
                 // any pitch count. If not, it's an error and parsing failed anyway.

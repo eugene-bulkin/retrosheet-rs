@@ -747,6 +747,15 @@ impl<'a> From<&'a [u8]> for DataEventType {
     }
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+/// A description of what hand someone uses to bat.
+pub enum Hand {
+    /// Left-handed batting.
+    Left,
+    /// Right-handed batting.
+    Right,
+}
+
 #[derive(Clone, Debug, PartialEq)]
 /// A record describing something about an MLB game.
 pub enum Event {
@@ -809,6 +818,22 @@ pub enum Event {
     Comment {
         /// The comment itself.
         comment: String,
+    },
+    /// A record describing a batting adjustment; i.e. when a batter bats from a side that is
+    /// unexpected.
+    BattingAdjustment {
+        /// The player to whom the adjustment applies.
+        player: PlayerId,
+        /// The hand with which they are batting for this instance.
+        hand: Hand,
+    },
+    /// A record describing a pitching adjustment; i.e. when a pitcher pitches from a side that is
+    /// unexpected. This has actually only ever happened once, but it is possible.
+    PitchingAdjustment {
+        /// The player to whom the adjustment applies.
+        player: PlayerId,
+        /// The hand with which they are pitching for this instance.
+        hand: Hand,
     },
 }
 
