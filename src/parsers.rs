@@ -152,7 +152,7 @@ named!(play_desc_ltp (&[u8]) -> PlayDescription, do_parse!(
 ));
 
 named!(play_description (&[u8]) -> PlayDescription, alt_complete!(
-    map!(preceded!(tag!("SB"), base), PlayDescription::StolenBase) |
+    map!(separated_nonempty_list!(tag!(";"), preceded!(tag!("SB"), base)), PlayDescription::StolenBase) |
     value!(PlayDescription::OtherAdvance, tag!("OA")) |
     value!(PlayDescription::IntentionalWalk, tag!("IW")) |
     value!(PlayDescription::IntentionalWalk, tag!("I")) |
@@ -812,7 +812,8 @@ mod tests {
         assert_parsed!(desc5, play_description(b"W+WP"));
         assert_parsed!(PlayDescription::HitByPitch, play_description(b"HP"));
         assert_parsed!(PlayDescription::NoPlay, play_description(b"NP"));
-        assert_parsed!(PlayDescription::StolenBase(Base::Third), play_description(b"SB3"));
+        assert_parsed!(PlayDescription::StolenBase(vec![Base::Third]), play_description(b"SB3"));
+        assert_parsed!(PlayDescription::StolenBase(vec![Base::Third, Base::Second]), play_description(b"SB3;SB2"));
         assert_parsed!(PlayDescription::CatcherInterference(1), play_description(b"C/E1"));
         assert_parsed!(PlayDescription::CatcherInterference(2), play_description(b"C/E2"));
         assert_parsed!(PlayDescription::CatcherInterference(3), play_description(b"C/E3"));
