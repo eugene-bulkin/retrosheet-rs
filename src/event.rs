@@ -608,7 +608,7 @@ impl<'a> From<&'a [u8]> for HitLocation {
 pub enum PlayModifier {
     /// A hit of some kind, possibly with a specific location.
     HitWithLocation(HitType, Option<HitLocation>),
-    /// Just a hit location (used wit home runs).
+    /// Just a hit location (used with home runs).
     HitLocation(HitLocation),
     /// appeal play
     AppealPlay,
