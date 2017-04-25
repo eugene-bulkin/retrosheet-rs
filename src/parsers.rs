@@ -304,10 +304,12 @@ named!(advance (&[u8]) -> Advance, do_parse!(
 
 named!(play_event (&[u8]) -> PlayEvent, do_parse!(
     play_desc: complete!(play_description) >>
+    opt!(complete!(alt!(tag!("!") | tag!("?")))) >>
     modifiers: many0!(preceded!(tag!("/"), complete!(modifier))) >>
     advances: opt!(complete!(preceded!(tag!("."),
                              separated_list!(tag!(";"),
                                              advance)))) >>
+    opt!(complete!(tag!("#"))) >>
     (PlayEvent {
         description: play_desc,
         modifiers: modifiers,
