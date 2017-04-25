@@ -339,6 +339,8 @@ pub enum PlayDescription {
     /// throws that resulted in the out. Note that there wouldn't be errors here since the
     /// implication is that they were caught.
     PickOffCaughtStealing(Base, Vec<Fielder>),
+    /// A normal caught stealing event.
+    CaughtStealing(Base, Vec<Fielder>),
     /// A batter lining into a double play. Should be followed with an `LDP` modifier, but we don't
     /// verify this.
     LinedIntoDoublePlay {

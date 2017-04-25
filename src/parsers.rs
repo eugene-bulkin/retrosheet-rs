@@ -108,6 +108,15 @@ named!(play_desc_pickoff_cs (&[u8]) -> PlayDescription, do_parse!(
     (PlayDescription::PickOffCaughtStealing(base, throws))
 ));
 
+named!(play_desc_cs (&[u8]) -> PlayDescription, do_parse!(
+    tag!("CS") >>
+    base: base >>
+    tag!("(") >>
+    throws: many1!(complete!(fielder)) >>
+    tag!(")") >>
+    (PlayDescription::CaughtStealing(base, throws))
+));
+
 named!(play_desc_pickoff (&[u8]) -> PlayDescription, do_parse!(
     tag!("PO") >>
     base: base >>
@@ -170,6 +179,7 @@ named!(play_description (&[u8]) -> PlayDescription, alt_complete!(
     map!(preceded!(tag!("S"), many0!(fielder)), PlayDescription::Single) |
     map!(preceded!(tag!("D"), many0!(fielder)), PlayDescription::Double) |
     map!(preceded!(tag!("T"), many0!(fielder)), PlayDescription::Triple) |
+    play_desc_cs |
     complete!(play_desc_ltp) |
     complete!(play_desc_ldp) |
     complete!(play_desc_pickoff_cs) |
@@ -828,6 +838,8 @@ mod tests {
         ]), play_description(b"PO1(E3)"));
         assert_parsed!(PlayDescription::PickOffCaughtStealing(Base::Second, vec![1, 3, 6, 1]),
             play_description(b"POCS2(1361)"));
+        assert_parsed!(PlayDescription::CaughtStealing(Base::Second, vec![1, 3, 6, 1]),
+            play_description(b"CS2(1361)"));
         assert_parsed!(desc6, play_description(b"8(B)84(2)"));
         assert_parsed!(desc7, play_description(b"3(B)3(1)"));
         assert_parsed!(desc8, play_description(b"1(B)16(2)63(1)"));
