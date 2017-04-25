@@ -1,6 +1,6 @@
 extern crate retrosheet;
 
-use retrosheet::Parser;
+use retrosheet::{Parser, ParserError};
 
 use std::fs::File;
 use std::io::Read;
@@ -17,5 +17,16 @@ fn test_multiple_games() {
 
     let result = parser.parse(&buf);
 
-    assert!(result.is_ok(), "{}", result.err().unwrap());
+    match result {
+        Ok(_) => {},
+        Err(e) => {
+            match e {
+                ParserError::BytesRemaining(bytes) => {
+                    let first_chunk: Vec<u8> = bytes.into_iter().take(50).collect();
+                    assert!(false, "unfinished: {}...", ::std::str::from_utf8(&first_chunk).unwrap())
+                },
+                _ => assert!(false, "{}", e),
+            }
+        }
+    }
 }
