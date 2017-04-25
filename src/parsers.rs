@@ -108,11 +108,21 @@ named!(play_desc_pickoff_cs (&[u8]) -> PlayDescription, do_parse!(
     (PlayDescription::PickOffCaughtStealing(base, throws))
 ));
 
+named!(play_desc_cs (&[u8]) -> PlayDescription, do_parse!(
+    tag!("CS") >>
+    base: base >>
+    tag!("(") >>
+    throws: many1!(complete!(fielder)) >>
+    tag!(")") >>
+    (PlayDescription::CaughtStealing(base, throws))
+));
+
 named!(play_desc_pickoff (&[u8]) -> PlayDescription, do_parse!(
     tag!("PO") >>
     base: base >>
     tag!("(") >>
     throws: field_parameters >>
+    opt!(tag!("/TH")) >>
     tag!(")") >>
     (PlayDescription::PickOff(base, throws))
 ));
@@ -152,7 +162,7 @@ named!(play_desc_ltp (&[u8]) -> PlayDescription, do_parse!(
 ));
 
 named!(play_description (&[u8]) -> PlayDescription, alt_complete!(
-    map!(preceded!(tag!("SB"), base), PlayDescription::StolenBase) |
+    map!(separated_nonempty_list!(tag!(";"), preceded!(tag!("SB"), base)), PlayDescription::StolenBase) |
     value!(PlayDescription::OtherAdvance, tag!("OA")) |
     value!(PlayDescription::IntentionalWalk, tag!("IW")) |
     value!(PlayDescription::IntentionalWalk, tag!("I")) |
@@ -170,6 +180,7 @@ named!(play_description (&[u8]) -> PlayDescription, alt_complete!(
     map!(preceded!(tag!("S"), many0!(fielder)), PlayDescription::Single) |
     map!(preceded!(tag!("D"), many0!(fielder)), PlayDescription::Double) |
     map!(preceded!(tag!("T"), many0!(fielder)), PlayDescription::Triple) |
+    play_desc_cs |
     complete!(play_desc_ltp) |
     complete!(play_desc_ldp) |
     complete!(play_desc_pickoff_cs) |
@@ -205,6 +216,7 @@ named!(hit_with_location (&[u8]) -> PlayModifier, do_parse!(
 named!(modifier (&[u8]) -> PlayModifier, do_parse!(
     m: alt_complete!(
         value!(PlayModifier::AppealPlay, tag!("AP")) |
+        value!(PlayModifier::BuntFoul, tag!("BF")) |
         value!(PlayModifier::BuntGroundedIntoDoublePlay, tag!("BGDP")) |
         value!(PlayModifier::BatterInterference, tag!("BINT")) |
         value!(PlayModifier::LineDriveBunt, tag!("BL")) |
@@ -266,7 +278,11 @@ named!(advance_parameter (&[u8]) -> AdvanceParameter, do_parse!(
             (AdvanceParameter::ThrowingError(f, base))
         ) |
         value!(AdvanceParameter::WithThrow, tag!("TH")) |
-        map!(field_parameters, AdvanceParameter::FieldingPlay)
+        do_parse!(
+            params: field_parameters >>
+            opt!(tag!("/TH")) >>
+            (AdvanceParameter::FieldingPlay(params))
+        )
     ) >>
     tag!(")") >>
     (param)
@@ -288,10 +304,12 @@ named!(advance (&[u8]) -> Advance, do_parse!(
 
 named!(play_event (&[u8]) -> PlayEvent, do_parse!(
     play_desc: complete!(play_description) >>
+    opt!(complete!(alt!(tag!("!") | tag!("?")))) >>
     modifiers: many0!(preceded!(tag!("/"), complete!(modifier))) >>
     advances: opt!(complete!(preceded!(tag!("."),
                              separated_list!(tag!(";"),
                                              advance)))) >>
+    opt!(complete!(tag!("#"))) >>
     (PlayEvent {
         description: play_desc,
         modifiers: modifiers,
@@ -597,6 +615,7 @@ mod tests {
         assert_parsed!(PlayModifier::HitWithLocation(HitType::PopFly, Some(HitLocation::_4MS)), modifier(b"P4MS"));
 
         assert_parsed!(PlayModifier::AppealPlay, modifier(b"AP"));
+        assert_parsed!(PlayModifier::BuntFoul, modifier(b"BF"));
         assert_parsed!(PlayModifier::BuntGroundedIntoDoublePlay, modifier(b"BGDP"));
         assert_parsed!(PlayModifier::BatterInterference, modifier(b"BINT"));
         assert_parsed!(PlayModifier::LineDriveBunt, modifier(b"BL"));
@@ -666,6 +685,17 @@ mod tests {
                 FieldParameter::Play(4),
             ])],
         }, advance(b"BX2(8434)"));
+        assert_parsed!(Advance {
+            from: Base::Home,
+            to: Base::Second,
+            success: false,
+            parameters: vec![AdvanceParameter::FieldingPlay(vec![
+                FieldParameter::Play(8),
+                FieldParameter::Play(4),
+                FieldParameter::Play(3),
+                FieldParameter::Play(4),
+            ])],
+        }, advance(b"BX2(8434/TH)"));
         assert_parsed!(Advance {
             from: Base::Home,
             to: Base::Second,
@@ -810,7 +840,8 @@ mod tests {
         assert_parsed!(desc5, play_description(b"W+WP"));
         assert_parsed!(PlayDescription::HitByPitch, play_description(b"HP"));
         assert_parsed!(PlayDescription::NoPlay, play_description(b"NP"));
-        assert_parsed!(PlayDescription::StolenBase(Base::Third), play_description(b"SB3"));
+        assert_parsed!(PlayDescription::StolenBase(vec![Base::Third]), play_description(b"SB3"));
+        assert_parsed!(PlayDescription::StolenBase(vec![Base::Third, Base::Second]), play_description(b"SB3;SB2"));
         assert_parsed!(PlayDescription::CatcherInterference(1), play_description(b"C/E1"));
         assert_parsed!(PlayDescription::CatcherInterference(2), play_description(b"C/E2"));
         assert_parsed!(PlayDescription::CatcherInterference(3), play_description(b"C/E3"));
@@ -825,6 +856,8 @@ mod tests {
         ]), play_description(b"PO1(E3)"));
         assert_parsed!(PlayDescription::PickOffCaughtStealing(Base::Second, vec![1, 3, 6, 1]),
             play_description(b"POCS2(1361)"));
+        assert_parsed!(PlayDescription::CaughtStealing(Base::Second, vec![1, 3, 6, 1]),
+            play_description(b"CS2(1361)"));
         assert_parsed!(desc6, play_description(b"8(B)84(2)"));
         assert_parsed!(desc7, play_description(b"3(B)3(1)"));
         assert_parsed!(desc8, play_description(b"1(B)16(2)63(1)"));

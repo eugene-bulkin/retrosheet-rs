@@ -314,8 +314,8 @@ pub enum PlayDescription {
     InsideTheParkHomeRun(Vec<Fielder>),
     /// No play was made. Used when a substitution immediately follows.
     NoPlay,
-    /// A stolen base, with the base information.
-    StolenBase(Base),
+    /// Stolen base(s), with the base information.
+    StolenBase(Vec<Base>),
     /// The player was hit by a pitch.
     HitByPitch,
     /// Catcher interference. Technically, this also covers interference by the pitcher or first
@@ -339,6 +339,8 @@ pub enum PlayDescription {
     /// throws that resulted in the out. Note that there wouldn't be errors here since the
     /// implication is that they were caught.
     PickOffCaughtStealing(Base, Vec<Fielder>),
+    /// A normal caught stealing event.
+    CaughtStealing(Base, Vec<Fielder>),
     /// A batter lining into a double play. Should be followed with an `LDP` modifier, but we don't
     /// verify this.
     LinedIntoDoublePlay {
@@ -608,10 +610,12 @@ impl<'a> From<&'a [u8]> for HitLocation {
 pub enum PlayModifier {
     /// A hit of some kind, possibly with a specific location.
     HitWithLocation(HitType, Option<HitLocation>),
-    /// Just a hit location (used wit home runs).
+    /// Just a hit location (used with home runs).
     HitLocation(HitLocation),
     /// appeal play
     AppealPlay,
+    /// bunt hit foul (usually with two strikes)
+    BuntFoul,
     /// bunt grounded into double play
     BuntGroundedIntoDoublePlay,
     /// batter interference
