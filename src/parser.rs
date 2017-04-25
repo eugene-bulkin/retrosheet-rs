@@ -49,6 +49,7 @@ pub struct Parser {
     state: State,
 }
 
+// TODO: Reconsider this API. Make this static? Or make the parser truly pauseable?
 impl Parser {
     /// Creates a new parser instance.
     pub fn new() -> Parser {
