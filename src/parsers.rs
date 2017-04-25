@@ -122,6 +122,7 @@ named!(play_desc_pickoff (&[u8]) -> PlayDescription, do_parse!(
     base: base >>
     tag!("(") >>
     throws: field_parameters >>
+    opt!(tag!("/TH")) >>
     tag!(")") >>
     (PlayDescription::PickOff(base, throws))
 ));
@@ -277,7 +278,11 @@ named!(advance_parameter (&[u8]) -> AdvanceParameter, do_parse!(
             (AdvanceParameter::ThrowingError(f, base))
         ) |
         value!(AdvanceParameter::WithThrow, tag!("TH")) |
-        map!(field_parameters, AdvanceParameter::FieldingPlay)
+        do_parse!(
+            params: field_parameters >>
+            opt!(tag!("/TH")) >>
+            (AdvanceParameter::FieldingPlay(params))
+        )
     ) >>
     tag!(")") >>
     (param)
@@ -678,6 +683,17 @@ mod tests {
                 FieldParameter::Play(4),
             ])],
         }, advance(b"BX2(8434)"));
+        assert_parsed!(Advance {
+            from: Base::Home,
+            to: Base::Second,
+            success: false,
+            parameters: vec![AdvanceParameter::FieldingPlay(vec![
+                FieldParameter::Play(8),
+                FieldParameter::Play(4),
+                FieldParameter::Play(3),
+                FieldParameter::Play(4),
+            ])],
+        }, advance(b"BX2(8434/TH)"));
         assert_parsed!(Advance {
             from: Base::Home,
             to: Base::Second,
