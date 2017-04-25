@@ -612,6 +612,8 @@ pub enum PlayModifier {
     HitLocation(HitLocation),
     /// appeal play
     AppealPlay,
+    /// bunt hit foul (usually with two strikes)
+    BuntFoul,
     /// bunt grounded into double play
     BuntGroundedIntoDoublePlay,
     /// batter interference

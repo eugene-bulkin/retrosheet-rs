@@ -205,6 +205,7 @@ named!(hit_with_location (&[u8]) -> PlayModifier, do_parse!(
 named!(modifier (&[u8]) -> PlayModifier, do_parse!(
     m: alt_complete!(
         value!(PlayModifier::AppealPlay, tag!("AP")) |
+        value!(PlayModifier::BuntFoul, tag!("BF")) |
         value!(PlayModifier::BuntGroundedIntoDoublePlay, tag!("BGDP")) |
         value!(PlayModifier::BatterInterference, tag!("BINT")) |
         value!(PlayModifier::LineDriveBunt, tag!("BL")) |
@@ -597,6 +598,7 @@ mod tests {
         assert_parsed!(PlayModifier::HitWithLocation(HitType::PopFly, Some(HitLocation::_4MS)), modifier(b"P4MS"));
 
         assert_parsed!(PlayModifier::AppealPlay, modifier(b"AP"));
+        assert_parsed!(PlayModifier::BuntFoul, modifier(b"BF"));
         assert_parsed!(PlayModifier::BuntGroundedIntoDoublePlay, modifier(b"BGDP"));
         assert_parsed!(PlayModifier::BatterInterference, modifier(b"BINT"));
         assert_parsed!(PlayModifier::LineDriveBunt, modifier(b"BL"));
