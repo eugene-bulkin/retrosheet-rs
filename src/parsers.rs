@@ -1,15 +1,11 @@
-use nom::{alpha, alphanumeric, digit, not_line_ending};
-
 use std::str;
 
-use ::event::{Advance, AdvanceParameter, Base, Event, Fielder, FieldParameter, Hand, HitType,
-              HitLocation, Pitch, Player, PlayDescription, PlayEvent, PlayModifier, Team};
+use nom::{alpha, alphanumeric, digit, not_line_ending};
 
-macro_rules! assert_parsed {
-    ($expected: expr, $result: expr) => (
-        assert_eq!(Done(&[][..], $expected), $result);
-    );
-}
+use event::{
+    Advance, AdvanceParameter, Base, Event, Fielder, FieldParameter, Hand, HitLocation, HitType,
+    Pitch, PlayDescription, Player, PlayEvent, PlayModifier, Team,
+};
 
 named!(bytes_to_u8 (&[u8]) -> u8, map_res!(map_res!(digit, str::from_utf8), str::parse::<u8>));
 
@@ -313,7 +309,7 @@ named!(play_event (&[u8]) -> PlayEvent, do_parse!(
     (PlayEvent {
         description: play_desc,
         modifiers: modifiers,
-        advances: advances.unwrap_or(vec![]),
+        advances: advances.unwrap_or_else(|| vec![]),
     })
 ));
 
@@ -477,12 +473,20 @@ named!(pub event (&[u8]) -> Event, do_parse!(
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-
     use nom::IResult::*;
 
-    use ::event::{Advance, AdvanceParameter, Base, DataEventType, Event, FieldParameter, Hand,
-                  HitType, HitLocation, Pitch, PlayEvent, PlayDescription, PlayModifier, Team};
+    use event::{
+        Advance, AdvanceParameter, Base, DataEventType, Event, FieldParameter, Hand, HitLocation,
+        HitType, Pitch, PlayDescription, PlayEvent, PlayModifier, Team,
+    };
+
+    use super::*;
+
+    macro_rules! assert_parsed {
+        ($expected: expr, $result: expr) => {
+            assert_eq!(Done(&[][..], $expected), $result);
+        };
+    }
 
     #[test]
     fn test_version() {
@@ -492,18 +496,26 @@ mod tests {
 
     #[test]
     fn test_game_id() {
-        assert_parsed!(Event::GameId { id: "CHN201604110".into() }, game_id(b"id,CHN201604110"));
+        assert_parsed!(
+            Event::GameId {
+                id: "CHN201604110".into()
+            },
+            game_id(b"id,CHN201604110")
+        );
         assert!(game_id(b"asdlfk,3,5").is_err());
         assert!(game_id(b"id,3455").is_incomplete());
     }
 
     #[test]
     fn test_data() {
-        assert_parsed!(Event::Data {
-            data_type: DataEventType::EarnedRuns,
-            player: "showe001".into(),
-            value: "2".into(),
-        }, data(b"data,er,showe001,2"));
+        assert_parsed!(
+            Event::Data {
+                data_type: DataEventType::EarnedRuns,
+                player: "showe001".into(),
+                value: "2".into(),
+            },
+            data(b"data,er,showe001,2")
+        );
     }
 
     #[test]
@@ -522,13 +534,33 @@ mod tests {
             batting_pos: 3,
             fielding_pos: 9,
         };
-        assert_parsed!(Event::Start { player: player1.clone() }, start(b"start,fred103,\"fred\",1,7,6"));
-        assert_parsed!(Event::Start { player: player2.clone() }, start(b"start,bob202,\"bob\",0,3,9"));
+        assert_parsed!(
+            Event::Start {
+                player: player1.clone()
+            },
+            start(b"start,fred103,\"fred\",1,7,6")
+        );
+        assert_parsed!(
+            Event::Start {
+                player: player2.clone()
+            },
+            start(b"start,bob202,\"bob\",0,3,9")
+        );
         assert!(start(b"start,bob202,\"bob\",2,3,9").is_err());
         assert!(start(b"start,bob202").is_err());
 
-        assert_parsed!(Event::Sub { player: player1.clone() }, sub(b"sub,fred103,\"fred\",1,7,6"));
-        assert_parsed!(Event::Sub { player: player2.clone() }, sub(b"sub,bob202,\"bob\",0,3,9"));
+        assert_parsed!(
+            Event::Sub {
+                player: player1.clone()
+            },
+            sub(b"sub,fred103,\"fred\",1,7,6")
+        );
+        assert_parsed!(
+            Event::Sub {
+                player: player2.clone()
+            },
+            sub(b"sub,bob202,\"bob\",0,3,9")
+        );
         assert!(sub(b"sub,bob202,\"bob\",2,3,9").is_err());
         assert!(sub(b"sub,bob202").is_err());
     }
@@ -607,12 +639,30 @@ mod tests {
 
     #[test]
     fn test_modifier() {
-        assert_parsed!(PlayModifier::HitWithLocation(HitType::PopUpBunt, None), modifier(b"BP"));
-        assert_parsed!(PlayModifier::HitWithLocation(HitType::GroundBallBunt, Some(HitLocation::_9LF)), modifier(b"BG9LF"));
-        assert_parsed!(PlayModifier::HitWithLocation(HitType::Fly, Some(HitLocation::_89S)), modifier(b"F89S"));
-        assert_parsed!(PlayModifier::HitWithLocation(HitType::GroundBall, Some(HitLocation::_13)), modifier(b"G13"));
-        assert_parsed!(PlayModifier::HitWithLocation(HitType::LineDrive, None), modifier(b"L"));
-        assert_parsed!(PlayModifier::HitWithLocation(HitType::PopFly, Some(HitLocation::_4MS)), modifier(b"P4MS"));
+        assert_parsed!(
+            PlayModifier::HitWithLocation(HitType::PopUpBunt, None),
+            modifier(b"BP")
+        );
+        assert_parsed!(
+            PlayModifier::HitWithLocation(HitType::GroundBallBunt, Some(HitLocation::_9LF)),
+            modifier(b"BG9LF")
+        );
+        assert_parsed!(
+            PlayModifier::HitWithLocation(HitType::Fly, Some(HitLocation::_89S)),
+            modifier(b"F89S")
+        );
+        assert_parsed!(
+            PlayModifier::HitWithLocation(HitType::GroundBall, Some(HitLocation::_13)),
+            modifier(b"G13")
+        );
+        assert_parsed!(
+            PlayModifier::HitWithLocation(HitType::LineDrive, None),
+            modifier(b"L")
+        );
+        assert_parsed!(
+            PlayModifier::HitWithLocation(HitType::PopFly, Some(HitLocation::_4MS)),
+            modifier(b"P4MS")
+        );
 
         assert_parsed!(PlayModifier::AppealPlay, modifier(b"AP"));
         assert_parsed!(PlayModifier::BuntFoul, modifier(b"BF"));
@@ -659,128 +709,160 @@ mod tests {
 
     #[test]
     fn test_advance() {
-        assert_parsed!(Advance {
-            from: Base::Second,
-            to: Base::Third,
-            success: true,
-            parameters: vec![]
-        }, advance(b"2-3"));
-        assert_parsed!(Advance {
-            from: Base::First,
-            to: Base::Second,
-            success: false,
-            parameters: vec![AdvanceParameter::FieldingPlay(vec![
-                FieldParameter::Play(2),
-                FieldParameter::Play(6),
-            ])],
-        }, advance(b"1X2(26)"));
-        assert_parsed!(Advance {
-            from: Base::Home,
-            to: Base::Second,
-            success: false,
-            parameters: vec![AdvanceParameter::FieldingPlay(vec![
-                FieldParameter::Play(8),
-                FieldParameter::Play(4),
-                FieldParameter::Play(3),
-                FieldParameter::Play(4),
-            ])],
-        }, advance(b"BX2(8434)"));
-        assert_parsed!(Advance {
-            from: Base::Home,
-            to: Base::Second,
-            success: false,
-            parameters: vec![AdvanceParameter::FieldingPlay(vec![
-                FieldParameter::Play(8),
-                FieldParameter::Play(4),
-                FieldParameter::Play(3),
-                FieldParameter::Play(4),
-            ])],
-        }, advance(b"BX2(8434/TH)"));
-        assert_parsed!(Advance {
-            from: Base::Home,
-            to: Base::Second,
-            success: false,
-            parameters: vec![AdvanceParameter::FieldingPlay(vec![
-                FieldParameter::Play(7),
-                FieldParameter::Error(4),
-            ])],
-        }, advance(b"BX2(7E4)"));
-        assert_parsed!(Advance {
-            from: Base::First,
-            to: Base::Third,
-            success: true,
-            parameters: vec![AdvanceParameter::ThrowingError(5, None)],
-        }, advance(b"1-3(E5/TH)"));
-        assert_parsed!(Advance {
-            from: Base::Second,
-            to: Base::Home,
-            success: true,
-            parameters: vec![
-                AdvanceParameter::ThrowingError(4, None),
-                AdvanceParameter::UnearnedRun,
-                AdvanceParameter::NoRBI
-            ],
-        }, advance(b"2-H(E4/TH)(UR)(NR)"));
-        assert_parsed!(Advance {
-            from: Base::Second,
-            to: Base::Home,
-            success: true,
-            parameters: vec![
-                AdvanceParameter::ThrowingError(4, None),
-                AdvanceParameter::UnearnedRun,
-                AdvanceParameter::NoRBI
-            ],
-        }, advance(b"2-H(E4/TH)(UR)(NORBI)"));
-        assert_parsed!(Advance {
-            from: Base::Third,
-            to: Base::Home,
-            success: true,
-            parameters: vec![
-                AdvanceParameter::RBI
-            ],
-        }, advance(b"3-H(RBI)"));
-        assert_parsed!(Advance {
-            from: Base::Second,
-            to: Base::Third,
-            success: false,
-            parameters: vec![
-                AdvanceParameter::Interference(5)
-            ],
-        }, advance(b"2X3(5/INT)"));
-        assert_parsed!(Advance {
-            from: Base::Second,
-            to: Base::Home,
-            success: true,
-            parameters: vec![
-                AdvanceParameter::TeamUnearnedRun
-            ],
-        }, advance(b"2-H(TUR)"));
-        assert_parsed!(Advance {
-            from: Base::Home,
-            to: Base::Second,
-            success: false,
-            parameters: vec![
-                AdvanceParameter::FieldingPlay(vec![
+        assert_parsed!(
+            Advance {
+                from: Base::Second,
+                to: Base::Third,
+                success: true,
+                parameters: vec![]
+            },
+            advance(b"2-3")
+        );
+        assert_parsed!(
+            Advance {
+                from: Base::First,
+                to: Base::Second,
+                success: false,
+                parameters: vec![AdvanceParameter::FieldingPlay(vec![
+                    FieldParameter::Play(2),
+                    FieldParameter::Play(6),
+                ])],
+            },
+            advance(b"1X2(26)")
+        );
+        assert_parsed!(
+            Advance {
+                from: Base::Home,
+                to: Base::Second,
+                success: false,
+                parameters: vec![AdvanceParameter::FieldingPlay(vec![
+                    FieldParameter::Play(8),
+                    FieldParameter::Play(4),
+                    FieldParameter::Play(3),
+                    FieldParameter::Play(4),
+                ])],
+            },
+            advance(b"BX2(8434)")
+        );
+        assert_parsed!(
+            Advance {
+                from: Base::Home,
+                to: Base::Second,
+                success: false,
+                parameters: vec![AdvanceParameter::FieldingPlay(vec![
+                    FieldParameter::Play(8),
+                    FieldParameter::Play(4),
+                    FieldParameter::Play(3),
+                    FieldParameter::Play(4),
+                ])],
+            },
+            advance(b"BX2(8434/TH)")
+        );
+        assert_parsed!(
+            Advance {
+                from: Base::Home,
+                to: Base::Second,
+                success: false,
+                parameters: vec![AdvanceParameter::FieldingPlay(vec![
+                    FieldParameter::Play(7),
+                    FieldParameter::Error(4),
+                ])],
+            },
+            advance(b"BX2(7E4)")
+        );
+        assert_parsed!(
+            Advance {
+                from: Base::First,
+                to: Base::Third,
+                success: true,
+                parameters: vec![AdvanceParameter::ThrowingError(5, None)],
+            },
+            advance(b"1-3(E5/TH)")
+        );
+        assert_parsed!(
+            Advance {
+                from: Base::Second,
+                to: Base::Home,
+                success: true,
+                parameters: vec![
+                    AdvanceParameter::ThrowingError(4, None),
+                    AdvanceParameter::UnearnedRun,
+                    AdvanceParameter::NoRBI
+                ],
+            },
+            advance(b"2-H(E4/TH)(UR)(NR)")
+        );
+        assert_parsed!(
+            Advance {
+                from: Base::Second,
+                to: Base::Home,
+                success: true,
+                parameters: vec![
+                    AdvanceParameter::ThrowingError(4, None),
+                    AdvanceParameter::UnearnedRun,
+                    AdvanceParameter::NoRBI
+                ],
+            },
+            advance(b"2-H(E4/TH)(UR)(NORBI)")
+        );
+        assert_parsed!(
+            Advance {
+                from: Base::Third,
+                to: Base::Home,
+                success: true,
+                parameters: vec![AdvanceParameter::RBI],
+            },
+            advance(b"3-H(RBI)")
+        );
+        assert_parsed!(
+            Advance {
+                from: Base::Second,
+                to: Base::Third,
+                success: false,
+                parameters: vec![AdvanceParameter::Interference(5)],
+            },
+            advance(b"2X3(5/INT)")
+        );
+        assert_parsed!(
+            Advance {
+                from: Base::Second,
+                to: Base::Home,
+                success: true,
+                parameters: vec![AdvanceParameter::TeamUnearnedRun],
+            },
+            advance(b"2-H(TUR)")
+        );
+        assert_parsed!(
+            Advance {
+                from: Base::Home,
+                to: Base::Second,
+                success: false,
+                parameters: vec![AdvanceParameter::FieldingPlay(vec![
                     FieldParameter::Play(8),
                     FieldParameter::Unknown,
                     FieldParameter::Play(3),
-                ])
-            ],
-        }, advance(b"BX2(8U3)"));
-        assert_parsed!(Advance {
-            from: Base::Home,
-            to: Base::Second,
-            success: true,
-            parameters: vec![
-                AdvanceParameter::WithThrow
-            ],
-        }, advance(b"B-2(TH)"));
+                ])],
+            },
+            advance(b"BX2(8U3)")
+        );
+        assert_parsed!(
+            Advance {
+                from: Base::Home,
+                to: Base::Second,
+                success: true,
+                parameters: vec![AdvanceParameter::WithThrow],
+            },
+            advance(b"B-2(TH)")
+        );
     }
 
     #[test]
     fn test_play_description() {
         let desc1 = PlayDescription::FielderSequence(vec![2, 3], None);
-        let desc2 = PlayDescription::Strikeout(Some(Box::new(PlayDescription::FielderSequence(vec![2, 3], None))));
+        let desc2 = PlayDescription::Strikeout(Some(Box::new(PlayDescription::FielderSequence(
+            vec![2, 3],
+            None,
+        ))));
         let desc3 = PlayDescription::Strikeout(Some(Box::new(PlayDescription::PassedBall)));
         let desc4 = PlayDescription::Strikeout(Some(Box::new(PlayDescription::WildPitch)));
         let desc5 = PlayDescription::Walk(Some(Box::new(PlayDescription::WildPitch)));
@@ -808,8 +890,14 @@ mod tests {
             second_out: Base::First,
             putout: 3,
         };
-        assert_parsed!(PlayDescription::GIDP(vec![6, 4, 3], Base::Second), play_description(b"64(2)3"));
-        assert_parsed!(PlayDescription::FielderSequence(vec![5], None), play_description(b"5"));
+        assert_parsed!(
+            PlayDescription::GIDP(vec![6, 4, 3], Base::Second),
+            play_description(b"64(2)3")
+        );
+        assert_parsed!(
+            PlayDescription::FielderSequence(vec![5], None),
+            play_description(b"5")
+        );
         assert_parsed!(desc1, play_description(b"23"));
         assert_parsed!(PlayDescription::Balk, play_description(b"BK"));
         assert_parsed!(PlayDescription::PassedBall, play_description(b"PB"));
@@ -822,42 +910,86 @@ mod tests {
         assert_parsed!(desc3, play_description(b"K+PB"));
         assert_parsed!(desc4, play_description(b"K+WP"));
         assert_parsed!(PlayDescription::Error(3), play_description(b"E3"));
-        assert_parsed!(PlayDescription::FoulFlyBallError(3), play_description(b"FLE3"));
+        assert_parsed!(
+            PlayDescription::FoulFlyBallError(3),
+            play_description(b"FLE3")
+        );
         assert_parsed!(PlayDescription::Single(vec![]), play_description(b"S"));
         assert_parsed!(PlayDescription::Double(vec![]), play_description(b"D"));
         assert_parsed!(PlayDescription::Triple(vec![]), play_description(b"T"));
         assert_parsed!(PlayDescription::Single(vec![3]), play_description(b"S3"));
         assert_parsed!(PlayDescription::Double(vec![7]), play_description(b"D7"));
         assert_parsed!(PlayDescription::Triple(vec![6]), play_description(b"T6"));
-        assert_parsed!(PlayDescription::Single(vec![3, 4]), play_description(b"S34"));
-        assert_parsed!(PlayDescription::Double(vec![9, 7]), play_description(b"D97"));
-        assert_parsed!(PlayDescription::Triple(vec![5, 6]), play_description(b"T56"));
+        assert_parsed!(
+            PlayDescription::Single(vec![3, 4]),
+            play_description(b"S34")
+        );
+        assert_parsed!(
+            PlayDescription::Double(vec![9, 7]),
+            play_description(b"D97")
+        );
+        assert_parsed!(
+            PlayDescription::Triple(vec![5, 6]),
+            play_description(b"T56")
+        );
         assert_parsed!(PlayDescription::HomeRun, play_description(b"H"));
         assert_parsed!(PlayDescription::HomeRun, play_description(b"HR"));
-        assert_parsed!(PlayDescription::InsideTheParkHomeRun(vec![3, 4]), play_description(b"H34"));
-        assert_parsed!(PlayDescription::InsideTheParkHomeRun(vec![3, 4]), play_description(b"HR34"));
+        assert_parsed!(
+            PlayDescription::InsideTheParkHomeRun(vec![3, 4]),
+            play_description(b"H34")
+        );
+        assert_parsed!(
+            PlayDescription::InsideTheParkHomeRun(vec![3, 4]),
+            play_description(b"HR34")
+        );
         assert_parsed!(PlayDescription::Walk(None), play_description(b"W"));
         assert_parsed!(desc5, play_description(b"W+WP"));
         assert_parsed!(PlayDescription::HitByPitch, play_description(b"HP"));
         assert_parsed!(PlayDescription::NoPlay, play_description(b"NP"));
-        assert_parsed!(PlayDescription::StolenBase(vec![Base::Third]), play_description(b"SB3"));
-        assert_parsed!(PlayDescription::StolenBase(vec![Base::Third, Base::Second]), play_description(b"SB3;SB2"));
-        assert_parsed!(PlayDescription::CatcherInterference(1), play_description(b"C/E1"));
-        assert_parsed!(PlayDescription::CatcherInterference(2), play_description(b"C/E2"));
-        assert_parsed!(PlayDescription::CatcherInterference(3), play_description(b"C/E3"));
-        assert_parsed!(PlayDescription::DefensiveIndifference, play_description(b"DI"));
+        assert_parsed!(
+            PlayDescription::StolenBase(vec![Base::Third]),
+            play_description(b"SB3")
+        );
+        assert_parsed!(
+            PlayDescription::StolenBase(vec![Base::Third, Base::Second]),
+            play_description(b"SB3;SB2")
+        );
+        assert_parsed!(
+            PlayDescription::CatcherInterference(1),
+            play_description(b"C/E1")
+        );
+        assert_parsed!(
+            PlayDescription::CatcherInterference(2),
+            play_description(b"C/E2")
+        );
+        assert_parsed!(
+            PlayDescription::CatcherInterference(3),
+            play_description(b"C/E3")
+        );
+        assert_parsed!(
+            PlayDescription::DefensiveIndifference,
+            play_description(b"DI")
+        );
         assert_parsed!(PlayDescription::OtherAdvance, play_description(b"OA"));
-        assert_parsed!(PlayDescription::PickOff(Base::Second, vec![
-            FieldParameter::Play(1),
-            FieldParameter::Play(4),
-        ]), play_description(b"PO2(14)"));
-        assert_parsed!(PlayDescription::PickOff(Base::First, vec![
-            FieldParameter::Error(3),
-        ]), play_description(b"PO1(E3)"));
-        assert_parsed!(PlayDescription::PickOffCaughtStealing(Base::Second, vec![1, 3, 6, 1]),
-            play_description(b"POCS2(1361)"));
-        assert_parsed!(PlayDescription::CaughtStealing(Base::Second, vec![1, 3, 6, 1]),
-            play_description(b"CS2(1361)"));
+        assert_parsed!(
+            PlayDescription::PickOff(
+                Base::Second,
+                vec![FieldParameter::Play(1), FieldParameter::Play(4),]
+            ),
+            play_description(b"PO2(14)")
+        );
+        assert_parsed!(
+            PlayDescription::PickOff(Base::First, vec![FieldParameter::Error(3),]),
+            play_description(b"PO1(E3)")
+        );
+        assert_parsed!(
+            PlayDescription::PickOffCaughtStealing(Base::Second, vec![1, 3, 6, 1]),
+            play_description(b"POCS2(1361)")
+        );
+        assert_parsed!(
+            PlayDescription::CaughtStealing(Base::Second, vec![1, 3, 6, 1]),
+            play_description(b"CS2(1361)")
+        );
         assert_parsed!(desc6, play_description(b"8(B)84(2)"));
         assert_parsed!(desc7, play_description(b"3(B)3(1)"));
         assert_parsed!(desc8, play_description(b"1(B)16(2)63(1)"));
@@ -874,83 +1006,99 @@ mod tests {
                 to: Base::Second,
                 success: true,
                 parameters: vec![],
-            }]
+            }],
         };
         let event2 = PlayEvent {
             description: PlayDescription::FieldersChoice(2),
             modifiers: vec![PlayModifier::HitWithLocation(HitType::GroundBall, None)],
-            advances: vec![Advance {
-                from: Base::Second,
-                to: Base::Third,
-                success: false,
-                parameters: vec![AdvanceParameter::FieldingPlay(vec![
-                    FieldParameter::Play(2),
-                    FieldParameter::Play(6),
-                    FieldParameter::Play(5),
-                ])],
-            }, Advance {
-                from: Base::Home,
-                to: Base::Second,
-                success: true,
-                parameters: vec![AdvanceParameter::WithThrow],
-            }]
+            advances: vec![
+                Advance {
+                    from: Base::Second,
+                    to: Base::Third,
+                    success: false,
+                    parameters: vec![AdvanceParameter::FieldingPlay(vec![
+                        FieldParameter::Play(2),
+                        FieldParameter::Play(6),
+                        FieldParameter::Play(5),
+                    ])],
+                },
+                Advance {
+                    from: Base::Home,
+                    to: Base::Second,
+                    success: true,
+                    parameters: vec![AdvanceParameter::WithThrow],
+                },
+            ],
         };
         let event3 = PlayEvent {
             description: PlayDescription::Single(vec![8]),
             modifiers: vec![],
-            advances: vec![Advance {
-                from: Base::Second,
-                to: Base::Home,
-                success: true,
-                parameters: vec![],
-            }, Advance {
-                from: Base::Home,
-                to: Base::Second,
-                success: false,
-                parameters: vec![AdvanceParameter::FieldingPlay(vec![
-                    FieldParameter::Play(8),
-                    FieldParameter::Unknown,
-                    FieldParameter::Play(3),
-                ])],
-            }]
+            advances: vec![
+                Advance {
+                    from: Base::Second,
+                    to: Base::Home,
+                    success: true,
+                    parameters: vec![],
+                },
+                Advance {
+                    from: Base::Home,
+                    to: Base::Second,
+                    success: false,
+                    parameters: vec![AdvanceParameter::FieldingPlay(vec![
+                        FieldParameter::Play(8),
+                        FieldParameter::Unknown,
+                        FieldParameter::Play(3),
+                    ])],
+                },
+            ],
         };
         let event4 = PlayEvent {
             description: PlayDescription::Single(vec![]),
-            modifiers: vec![PlayModifier::HitWithLocation(HitType::LineDrive, Some(HitLocation::_9S))],
-            advances: vec![Advance {
-                from: Base::Third,
-                to: Base::Home,
-                success: true,
-                parameters: vec![],
-            }, Advance {
-                from: Base::Second,
-                to: Base::Third,
-                success: false,
-                parameters: vec![AdvanceParameter::Interference(5)],
-            }, Advance {
-                from: Base::First,
-                to: Base::Second,
-                success: true,
-                parameters: vec![],
-            }]
+            modifiers: vec![PlayModifier::HitWithLocation(
+                HitType::LineDrive,
+                Some(HitLocation::_9S),
+            )],
+            advances: vec![
+                Advance {
+                    from: Base::Third,
+                    to: Base::Home,
+                    success: true,
+                    parameters: vec![],
+                },
+                Advance {
+                    from: Base::Second,
+                    to: Base::Third,
+                    success: false,
+                    parameters: vec![AdvanceParameter::Interference(5)],
+                },
+                Advance {
+                    from: Base::First,
+                    to: Base::Second,
+                    success: true,
+                    parameters: vec![],
+                },
+            ],
         };
         let event5 = PlayEvent {
             description: PlayDescription::FielderSequence(vec![5, 4], Some(Base::First)),
             modifiers: vec![
                 PlayModifier::ForceOut,
-                PlayModifier::HitWithLocation(HitType::GroundBall, Some(HitLocation::_5))
+                PlayModifier::HitWithLocation(HitType::GroundBall, Some(HitLocation::_5)),
             ],
-            advances: vec![Advance {
-                from: Base::Third,
-                to: Base::Home,
-                success: true,
-                parameters: vec![],
-            }, Advance {
-                from: Base::Home,
-                to: Base::First,
-                success: true,
-                parameters: vec![],
-            }]
+            advances: vec![
+                Advance {
+                    from: Base::Third,
+                    to: Base::Home,
+                    success: true,
+                    parameters: vec![],
+                },
+                Advance {
+                    from: Base::Home,
+                    to: Base::First,
+                    success: true,
+                    parameters: vec![],
+                },
+            ],
         };
 
         assert_parsed!(event1, play_event(b"23/G-.1-2"));
@@ -988,64 +1136,76 @@ mod tests {
                     to: Base::Second,
                     success: true,
                     parameters: vec![],
-                }]
-            }
+                }],
+            },
         };
         let parsed2 = Event::Play {
             inning: 7,
             team: Team::Visiting,
             player: "finnb001".into(),
             count: Some((0, 1)),
-            pitches: vec![
-                Pitch::FoulBunt,
-                Pitch::BallInPlayBatter,
-            ],
+            pitches: vec![Pitch::FoulBunt, Pitch::BallInPlayBatter],
             event: PlayEvent {
                 description: PlayDescription::FieldersChoice(2),
                 modifiers: vec![PlayModifier::HitWithLocation(HitType::GroundBall, None)],
-                advances: vec![Advance {
-                    from: Base::Second,
-                    to: Base::Third,
-                    success: false,
-                    parameters: vec![AdvanceParameter::FieldingPlay(vec![
-                        FieldParameter::Play(2),
-                        FieldParameter::Play(6),
-                        FieldParameter::Play(5),
-                    ])],
-                }, Advance {
-                    from: Base::Home,
-                    to: Base::Second,
-                    success: true,
-                    parameters: vec![AdvanceParameter::WithThrow],
-                }]
-            }
+                advances: vec![
+                    Advance {
+                        from: Base::Second,
+                        to: Base::Third,
+                        success: false,
+                        parameters: vec![AdvanceParameter::FieldingPlay(vec![
+                            FieldParameter::Play(2),
+                            FieldParameter::Play(6),
+                            FieldParameter::Play(5),
+                        ])],
+                    },
+                    Advance {
+                        from: Base::Home,
+                        to: Base::Second,
+                        success: true,
+                        parameters: vec![AdvanceParameter::WithThrow],
+                    },
+                ],
+            },
         };
         let parsed3 = Event::Play {
             inning: 6,
             team: Team::Home,
             player: "heywj001".into(),
             count: None,
-            pitches: vec![Pitch::CalledStrike, Pitch::Ball, Pitch::Foul, Pitch::Ball, Pitch::Ball, Pitch::SwingingStrike],
+            pitches: vec![
+                Pitch::CalledStrike,
+                Pitch::Ball,
+                Pitch::Foul,
+                Pitch::Ball,
+                Pitch::Ball,
+                Pitch::SwingingStrike,
+            ],
             event: PlayEvent {
                 description: PlayDescription::Strikeout(None),
                 modifiers: vec![],
                 advances: vec![],
-            }
+            },
         };
         let parsed4 = Event::Play {
             inning: 3,
             team: Team::Visiting,
             player: "hamib001".into(),
             count: Some((1, 2)),
-            pitches: vec![Pitch::Foul, Pitch::CalledStrike, Pitch::Ball, Pitch::BallInPlayBatter],
+            pitches: vec![
+                Pitch::Foul,
+                Pitch::CalledStrike,
+                Pitch::Ball,
+                Pitch::BallInPlayBatter,
+            ],
             event: PlayEvent {
                 description: PlayDescription::HomeRun,
                 modifiers: vec![
                     PlayModifier::HitLocation(HitLocation::_7),
-                    PlayModifier::HitWithLocation(HitType::Fly, None)
+                    PlayModifier::HitWithLocation(HitType::Fly, None),
                 ],
                 advances: vec![],
-            }
+            },
         };
 
         assert_parsed!(parsed1, play(play1));
@@ -1056,29 +1216,46 @@ mod tests {
 
     #[test]
     fn test_comment() {
-        assert_parsed!(Event::Comment { comment: "foo".into() }, comment(b"com,\"foo\""));
+        assert_parsed!(
+            Event::Comment {
+                comment: "foo".into()
+            },
+            comment(b"com,\"foo\"")
+        );
         assert!(comment(b"com,foo").is_err());
     }
 
     #[test]
     fn test_adjs() {
-        assert_parsed!(Event::BattingAdjustment {
-            player: "bonib001".into(),
-            hand: Hand::Right,
-        }, badj(b"badj,bonib001,R"));
-        assert_parsed!(Event::BattingAdjustment {
-            player: "dempr101".into(),
-            hand: Hand::Left,
-        }, badj(b"badj,dempr101,L"));
+        assert_parsed!(
+            Event::BattingAdjustment {
+                player: "bonib001".into(),
+                hand: Hand::Right,
+            },
+            badj(b"badj,bonib001,R")
+        );
+        assert_parsed!(
+            Event::BattingAdjustment {
+                player: "dempr101".into(),
+                hand: Hand::Left,
+            },
+            badj(b"badj,dempr101,L")
+        );
 
-        assert_parsed!(Event::PitchingAdjustment {
-            player: "harrg001".into(),
-            hand: Hand::Left,
-        }, padj(b"padj,harrg001,L"));
+        assert_parsed!(
+            Event::PitchingAdjustment {
+                player: "harrg001".into(),
+                hand: Hand::Left,
+            },
+            padj(b"padj,harrg001,L")
+        );
 
-        assert_parsed!(Event::LineupAdjustment {
-            team: Team::Home,
-            position: 7,
-        }, ladj(b"ladj,1,7"));
+        assert_parsed!(
+            Event::LineupAdjustment {
+                team: Team::Home,
+                position: 7,
+            },
+            ladj(b"ladj,1,7")
+        );
     }
 }

@@ -13,10 +13,10 @@
 #[macro_use]
 extern crate nom;
 
-mod game;
+pub use self::game::{Game, GameError};
+pub use self::parser::{Parser, ParserError};
+
 pub mod event;
+mod game;
 mod parser;
 mod parsers;
-
-pub use self::game::{Game, GameError};
-pub use self::parser::{Error as ParserError, Parser};
