@@ -1,8 +1,10 @@
 use nom::IResult;
 
-use ::event::Event;
-use ::game::{Game, GameError, GameState};
-use ::parsers::event;
+use crate::event::Event;
+use crate::game::{Game, GameError, GameState};
+use crate::parsers::event;
+
+pub use self::Error as ParserError;
 
 #[derive(Clone, Debug, PartialEq)]
 /// An error that occurs while parsing an event file.
@@ -10,7 +12,7 @@ pub enum Error {
     /// The parser received an unexpected `game_id` event.
     UnexpectedGameId {
         /// The id of the game already registered.
-        current_game_id: String
+        current_game_id: String,
     },
     /// The parser received an game event without a game having been started.
     NoGame(Event),
@@ -23,16 +25,22 @@ pub enum Error {
 impl ::std::fmt::Display for Error {
     fn fmt(&self, f: &mut ::std::fmt::Formatter) -> ::std::fmt::Result {
         match *self {
-            Error::UnexpectedGameId { ref current_game_id } => {
-                write!(f, "game_id event was received before finishing game '{}'", current_game_id)
-            }
-            Error::NoGame(ref evt) => {
-                write!(f, "event {:?} was received before a game was registered", evt)
-            }
+            Error::UnexpectedGameId {
+                ref current_game_id,
+            } => write!(
+                f,
+                "game_id event was received before finishing game '{}'",
+                current_game_id
+            ),
+            Error::NoGame(ref evt) => write!(
+                f,
+                "event {:?} was received before a game was registered",
+                evt
+            ),
             Error::BytesRemaining(ref bytes) => {
                 write!(f, "bytes remaining after parsing completed: {:?}", bytes)
             }
-            Error::GameProcessingError(ref e) => write!(f, "{}", e)
+            Error::GameProcessingError(ref e) => write!(f, "{}", e),
         }
     }
 }
@@ -49,11 +57,19 @@ pub struct Parser {
     state: State,
 }
 
+impl Default for Parser {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 // TODO: Reconsider this API. Make this static? Or make the parser truly pauseable?
 impl Parser {
     /// Creates a new parser instance.
     pub fn new() -> Parser {
-        Parser { state: State::Empty }
+        Parser {
+            state: State::Empty,
+        }
     }
 
     /// Resets the parser to the initial state.
@@ -89,13 +105,15 @@ impl Parser {
                     match evt {
                         Event::GameId { id } => {
                             // Game IDs can't appear until the previous game is done.
-                            if let GameState::Data = game.get_state() {
+                            if let GameState::Data = game.state {
                                 // The data stage is the last stage of game processing, so if an id
                                 // event occurs during that stage, that means the previous game is
                                 // done being parsed.
                                 new_game = Some(Game::new(id));
                             } else {
-                                return Err(Error::UnexpectedGameId { current_game_id: game.id.clone() });
+                                return Err(Error::UnexpectedGameId {
+                                    current_game_id: game.id.clone(),
+                                });
                             }
                         }
                         Event::Version { .. } => {
@@ -113,7 +131,9 @@ impl Parser {
                 // match, and it would be too awkward to work around that.
                 if self.state != State::Empty {
                     // Pull out the current game in the state and finish it up, then add to the list
-                    if let State::Game(mut game) = ::std::mem::replace(&mut self.state, State::Empty) {
+                    if let State::Game(mut game) =
+                        ::std::mem::replace(&mut self.state, State::Empty)
+                    {
                         try!(game.finish().map_err(Error::GameProcessingError));
                         result.push(game);
                     }
@@ -140,6 +160,16 @@ impl Parser {
 
 #[cfg(test)]
 mod tests {
+    use std::collections::{HashMap, HashSet};
+    use std::iter::FromIterator;
+
+    use event::{
+        Advance, Base, DataEventType, Event, Info, Pitch, PlayDescription, Player, PlayEvent, Team,
+    };
+    use game::{Game, GameError, GameState, Substitution};
+
+    use super::*;
+
     const SHORT_GAME: &'static [u8] = b"id,CHN201506130
 version,2
 info,number,0
@@ -149,15 +179,6 @@ play,4,1,buz,00,,NP
 sub,buz,\"Bax\",1,3,4
 data,er,foo,2";
 
-    use super::*;
-
-    use std::collections::{HashMap, HashSet};
-    use std::iter::FromIterator;
-
-    use ::event::{Advance, Base, DataEventType, Event, Info, Pitch, Player, PlayDescription,
-                  PlayEvent, Team};
-    use ::game::{Game, GameError, GameState, Substitution};
-
     fn short_game() -> Game {
         let mut game = Game::new("CHN201506130");
         game.info = {
@@ -165,61 +186,58 @@ data,er,foo,2";
             map.insert(Info::Number, "0".into());
             map
         };
-        game.starters = HashSet::from_iter(vec![
-            Player {
+        game.starters = HashSet::from_iter(
+            vec![Player {
                 id: "foo".into(),
                 name: "Bar".into(),
                 team: Team::Visiting,
                 batting_pos: 1,
                 fielding_pos: 6,
-            }
-        ].into_iter());
+            }]
+            .into_iter(),
+        );
         game.plays = vec![
-            (Event::Play {
-                inning: 4,
-                team: Team::Home,
-                player: "meh".into(),
-                count: Some((1, 2)),
-                pitches: vec![
-                    Pitch::CalledStrike,
-                    Pitch::CalledStrike,
-                    Pitch::BallInPlayBatter,
-                ],
-                event: PlayEvent {
-                    description: PlayDescription::Single(vec![8]),
-                    modifiers: vec![],
-                    advances: vec![
-                        Advance {
+            (
+                Event::Play {
+                    inning: 4,
+                    team: Team::Home,
+                    player: "meh".into(),
+                    count: Some((1, 2)),
+                    pitches: vec![
+                        Pitch::CalledStrike,
+                        Pitch::CalledStrike,
+                        Pitch::BallInPlayBatter,
+                    ],
+                    event: PlayEvent {
+                        description: PlayDescription::Single(vec![8]),
+                        modifiers: vec![],
+                        advances: vec![Advance {
                             from: Base::Home,
                             to: Base::Second,
                             success: true,
                             parameters: vec![],
-                        }
-                    ],
+                        }],
+                    },
                 },
-            }, vec![])
-            // The NP should be gone because of the sub!
+                vec![],
+            ), // The NP should be gone because of the sub!
         ];
-        game.data = vec![
-            Event::Data {
-                data_type: DataEventType::EarnedRuns,
-                player: "foo".into(),
-                value: "2".into(),
-            }
-        ];
-        game.substitutions = vec![
-            Substitution {
-                inning: 4,
-                batting_team: Team::Home,
-                player: Player {
-                    id: "buz".into(),
-                    name: "Bax".into(),
-                    team: Team::Home,
-                    batting_pos: 3,
-                    fielding_pos: 4,
-                },
-            }
-        ];
+        game.data = vec![Event::Data {
+            data_type: DataEventType::EarnedRuns,
+            player: "foo".into(),
+            value: "2".into(),
+        }];
+        game.substitutions = vec![Substitution {
+            inning: 4,
+            batting_team: Team::Home,
+            player: Player {
+                id: "buz".into(),
+                name: "Bax".into(),
+                team: Team::Home,
+                batting_pos: 3,
+                fielding_pos: 4,
+            },
+        }];
 
         game
     }
@@ -262,10 +280,17 @@ data,er,foo,2";
     #[test]
     fn test_unexpected_id() {
         let mut parser = Parser::new();
-        let result = parser.parse(b"id,CHN201506130
+        let result = parser.parse(
+            b"id,CHN201506130
 version,2
-id,CHN201604110");
-        assert_eq!(Err(Error::UnexpectedGameId { current_game_id: "CHN201506130".into() }), result);
+id,CHN201604110",
+        );
+        assert_eq!(
+            Err(Error::UnexpectedGameId {
+                current_game_id: "CHN201506130".into()
+            }),
+            result
+        );
     }
 
     #[test]
@@ -278,9 +303,11 @@ id,CHN201604110");
     #[test]
     fn test_bytes_remaining() {
         let mut parser = Parser::new();
-        let result = parser.parse(b"id,CHN201506130
+        let result = parser.parse(
+            b"id,CHN201506130
 version,2
-foo\n\n");
+foo\n\n",
+        );
         assert_eq!(Err(Error::BytesRemaining(b"foo\n\n".to_vec())), result);
     }
 
@@ -290,7 +317,11 @@ foo\n\n");
         let _ = parser.parse(b"id,CHN201506130");
         parser.reset();
         let result = parser.parse(SHORT_GAME);
-        assert!(result.is_ok(), "resetting parser did not allow new game: {}", result.err().unwrap());
+        assert!(
+            result.is_ok(),
+            "resetting parser did not allow new game: {}",
+            result.err().unwrap()
+        );
     }
 
     #[test]
@@ -298,17 +329,44 @@ foo\n\n");
         let event = Event::Data {
             data_type: DataEventType::EarnedRuns,
             player: "fred103".into(),
-            value: "2".into()
+            value: "2".into(),
         };
         let bytes = vec![1, 2, 3];
 
-        assert_eq!("game_id event was received before finishing game 'foo'".to_string(),
-        format!("{}", Error::UnexpectedGameId { current_game_id: "foo".into() }));
-        assert_eq!(format!("event {:?} was received before a game was registered", event), format!("{}", Error::NoGame(event.clone())));
+        assert_eq!(
+            "game_id event was received before finishing game 'foo'".to_string(),
+            format!(
+                "{}",
+                Error::UnexpectedGameId {
+                    current_game_id: "foo".into()
+                }
+            )
+        );
+        assert_eq!(
+            format!(
+                "event {:?} was received before a game was registered",
+                event
+            ),
+            format!("{}", Error::NoGame(event.clone()))
+        );
 
-        assert_eq!(format!("bytes remaining after parsing completed: {:?}", bytes), format!("{}", Error::BytesRemaining(bytes.clone())));
+        assert_eq!(
+            format!("bytes remaining after parsing completed: {:?}", bytes),
+            format!("{}", Error::BytesRemaining(bytes.clone()))
+        );
 
-        assert_eq!(format!("the event {:?} is not valid in the starting roster parsing state", event),
-        format!("{}", Error::GameProcessingError(GameError::InvalidEvent(GameState::Starters, event.clone()))));
+        assert_eq!(
+            format!(
+                "the event {:?} is not valid in the starting roster parsing state",
+                event
+            ),
+            format!(
+                "{}",
+                Error::GameProcessingError(GameError::InvalidEvent(
+                    GameState::Starters,
+                    event.clone()
+                ))
+            )
+        );
     }
 }

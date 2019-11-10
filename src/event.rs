@@ -364,7 +364,7 @@ pub enum PlayDescription {
         third_out: Vec<Fielder>,
         /// The base the third out was recorded on.
         third_out_runner: Base,
-    }
+    },
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -600,7 +600,7 @@ impl<'a> From<&'a [u8]> for HitLocation {
             b"78XD" => HitLocation::_78XD,
             b"8XD" => HitLocation::_8XD,
             b"89XD" => HitLocation::_89XD,
-            _ => unreachable!()
+            _ => unreachable!(),
         }
     }
 }
@@ -739,7 +739,7 @@ pub struct PlayEvent {
 /// A data record type. Currently only one (earned run) is supported.
 pub enum DataEventType {
     /// How many earned runs a pitcher incurred.
-    EarnedRuns
+    EarnedRuns,
 }
 
 impl<'a> From<&'a [u8]> for DataEventType {
@@ -766,12 +766,12 @@ pub enum Event {
     /// A twelve character ID record which identifies the date, home team, and number of the game.
     GameId {
         /// The game ID.
-        id: String
+        id: String,
     },
     /// A record identifying version information. The version is obsolete and can be ignored.
     Version {
         /// The version of the game data.
-        version: u8
+        version: u8,
     },
     /// A record identifying game information.
     Info {
@@ -779,17 +779,17 @@ pub enum Event {
         key: Info,
         /// The information in the record. Just stored as a string, though it can describe a variety
         /// of data.
-        data: String
+        data: String,
     },
     /// A record identifying a starter in the game.
     Start {
         /// The player starting.
-        player: Player
+        player: Player,
     },
     /// A record identifying a substitution of a player in the game.
     Sub {
         /// The player being subbed in.
-        player: Player
+        player: Player,
     },
     /// A record identifying a play occurring during a game.
     Play {

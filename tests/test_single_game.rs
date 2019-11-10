@@ -1,168 +1,21 @@
 extern crate retrosheet;
 
-use retrosheet::Parser;
+use std::fs::File;
+use std::io::Read;
 
-const DATA: &'static [u8] = b"id,CHN201604110
-version,2
-info,visteam,CIN
-info,hometeam,CHN
-info,site,CHI11
-info,date,2016/04/11
-info,number,0
-info,starttime,7:06PM
-info,daynight,night
-info,usedh,false
-info,umphome,tumpj901
-info,ump1b,kellj901
-info,ump2b,onorb901
-info,ump3b,porta901
-info,howscored,park
-info,pitches,pitches
-info,oscorer,frisd701
-info,temp,48
-info,winddir,ltor
-info,windspeed,12
-info,fieldcond,unknown
-info,precip,unknown
-info,sky,cloudy
-info,timeofgame,183
-info,attendance,40882
-info,wp,warra001
-info,lp,cingt001
-info,save,rondh001
-start,cozaz001,\"Zack Cozart\",0,1,6
-start,suare001,\"Eugenio Suarez\",0,2,5
-start,vottj001,\"Joey Votto\",0,3,3
-start,philb001,\"Brandon Phillips\",0,4,4
-start,mesod001,\"Devin Mesoraco\",0,5,2
-start,brucj001,\"Jay Bruce\",0,6,9
-start,duvaa001,\"Adam Duvall\",0,7,7
-start,finnb001,\"Brandon Finnegan\",0,8,1
-start,hamib001,\"Billy Hamilton\",0,9,8
-start,fowld001,\"Dexter Fowler\",1,1,8
-start,heywj001,\"Jason Heyward\",1,2,9
-start,bryak001,\"Kris Bryant\",1,3,5
-start,rizza001,\"Anthony Rizzo\",1,4,3
-start,zobrb001,\"Ben Zobrist\",1,5,4
-start,solej001,\"Jorge Soler\",1,6,7
-start,russa002,\"Addison Russell\",1,7,6
-start,rossd001,\"David Ross\",1,8,2
-start,lestj001,\"Jon Lester\",1,9,1
-play,1,0,cozaz001,21,BBFX,S49/L-
-play,1,0,suare001,32,BBBCFFX,5/L
-play,1,0,vottj001,11,FBX,S7/L.1-3;B-2(TH)
-play,1,0,philb001,31,BBF*BX,63/G.3-H
-play,1,0,mesod001,32,BBCCF*BC,K
-play,1,1,fowld001,00,X,9/L
-play,1,1,heywj001,10,BX,7/L
-play,1,1,bryak001,00,X,8/F
-play,2,0,brucj001,00,X,13/G
-play,2,0,duvaa001,02,CFX,53/G
-play,2,0,finnb001,02,CSC,K
-play,2,1,rizza001,02,CFFX,8/F-
-play,2,1,zobrb001,11,BCX,63/G
-play,2,1,solej001,32,BSFBBFX,53/G
-play,3,0,hamib001,12,FCBX,HR/7/F
-play,3,0,cozaz001,00,X,13/G
-play,3,0,suare001,02,CCX,7/F
-play,3,0,vottj001,32,CBBFBX,63/G
-play,3,1,russa002,00,X,7/L
-play,3,1,rossd001,31,FBBBB,W
-play,3,1,lestj001,12,FCBB,WP.1-2
-play,3,1,lestj001,32,FCBB.BB,W
-play,3,1,fowld001,32,BC*BS*BS,K
-play,3,1,heywj001,12,CCBFB,PB.2-3;1-2
-play,3,1,heywj001,32,CCBFB.FBFX,63/G
-play,4,0,philb001,22,SBSBFFFX,S8/L
-play,4,0,mesod001,22,BFFFBX,163/G.1-2
-play,4,0,brucj001,11,CB>S,SB3
-play,4,0,brucj001,32,CB>S.BBS,K
-play,4,0,duvaa001,30,BBBB,W
-play,4,0,finnb001,02,CFX,S8/L.3-H;1-3
-play,4,0,hamib001,11,CBX,7/L
-play,4,1,bryak001,00,,NP
-sub,dejei002,\"Ivan De Jesus\",0,1,6
-play,4,1,bryak001,02,.CFC,K
-play,4,1,rizza001,31,BCBBB,W
-play,4,1,zobrb001,00,X,6/L
-play,4,1,solej001,32,SBS*BF*B>X,8/F
-play,5,0,dejei002,02,CFFFX,9/F
-play,5,0,suare001,12,CFBS,K
-play,5,0,vottj001,22,CBBFC,K
-play,5,1,russa002,32,CBFBBB,W
-play,5,1,rossd001,12,BSSS,K
-play,5,1,lestj001,00,X,14/BG/SH.1-2
-play,5,1,fowld001,21,SB*BX,53/G
-play,6,0,philb001,00,X,7/F
-play,6,0,mesod001,32,CFBBB*B,W
-play,6,0,brucj001,12,FBFX,46(1)3/GDP
-play,6,1,heywj001,32,CBFBBS,K
-play,6,1,bryak001,11,BSX,E5/G.B-2
-play,6,1,rizza001,12,CFFBX,7/F-
-play,6,1,zobrb001,01,CX,53/G
-com,\"something happened\"
-play,7,0,duvaa001,00,,NP
-sub,cahit001,\"Trevor Cahill\",1,9,1
-play,7,0,duvaa001,10,.BX,D7/L
-play,7,0,finnb001,01,LX,FC2/G.2X3(265);B-2(TH)
-play,7,0,hamib001,32,LCBBFBS,K
-play,7,0,dejei002,32,BBCBFX,3/P
-play,7,1,solej001,01,FX,53/G
-play,7,1,russa002,32,CBFBBFC,K
-play,7,1,rossd001,12,SBFFFX,S8/L
-play,7,1,cahit001,00,,NP
-sub,szczm001,\"Matt Szczur\",1,9,11
-play,7,1,szczm001,30,.*B*BBB,W.1-2
-play,7,1,fowld001,00,,NP
-sub,cothc001,\"Caleb Cotham\",0,8,1
-play,7,1,fowld001,31,.BBFBB,W.2-3;1-2
-play,7,1,heywj001,00,,NP
-sub,cingt001,\"Tony Cingrani\",0,8,1
-play,7,1,heywj001,02,.CFX,S9/L.3-H;2-H;1-3
-play,7,1,bryak001,21,1FBBX,63/G
-play,8,0,suare001,00,,NP
-sub,warra001,\"Adam Warren\",1,9,1
-play,8,0,suare001,00,.X,63/G
-play,8,0,vottj001,21,BBFX,S9/L
-play,8,0,philb001,12,FBS1FX,23/G-.1-2
-play,8,0,mesod001,11,BCX,53/G
-play,8,1,rizza001,22,CFBBX,43/G
-play,8,1,zobrb001,31,BBFBB,W
-play,8,1,solej001,12,C11BSFB,WP.1-2
-play,8,1,solej001,32,C11BSFB.*BH,HP
-play,8,1,russa002,00,,NP
-sub,diazj005,\"Jumbo Diaz\",0,8,1
-play,8,1,russa002,00,.X,HR/78/F.2-H;1-H
-play,8,1,rossd001,11,BCX,53/G
-play,8,1,warra001,00,,NP
-sub,kawam001,\"Munenori Kawasaki\",1,9,11
-play,8,1,kawam001,22,.CSBBX,9/L
-play,9,0,brucj001,00,,NP
-sub,bryak001,\"Kris Bryant\",1,3,7
-play,9,0,brucj001,00,,NP
-sub,rondh001,\"Hector Rondon\",1,6,1
-play,9,0,brucj001,00,,NP
-sub,kawam001,\"Munenori Kawasaki\",1,9,5
-play,9,0,brucj001,02,...CFC,K
-play,9,0,duvaa001,12,CSBC,K
-play,9,0,diazj005,00,,NP
-sub,sches001,\"Scott Schebler\",0,8,11
-badj,sches001,R
-padj,rondh001,L
-ladj,1,7
-play,9,0,sches001,12,.CFFBC,K
-data,er,finnb001,2
-data,er,cothc001,0
-data,er,cingt001,2
-data,er,diazj005,1
-data,er,lestj001,3
-data,er,cahit001,0
-data,er,warra001,0
-data,er,rondh001,0";
+use retrosheet::Parser;
 
 #[test]
 fn test_single_game() {
     let mut parser = Parser::new();
 
-    assert!(parser.parse(DATA).is_ok());
+    let mut file = File::open(format!(
+        "{}/test_resources/CHN201604110.EVN",
+        env!("CARGO_MANIFEST_DIR")
+    ))
+    .expect("could not find CHN201604110.EVN");
+    let mut buf = vec![];
+    file.read_exact(&mut buf).expect("could not read");
+
+    assert!(parser.parse(&mut buf).is_ok());
 }
