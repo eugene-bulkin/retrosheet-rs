@@ -143,6 +143,7 @@ impl Game {
                 self.state = State::Starters;
                 self.process_event(event)
             }
+            Event::Comment { .. } => Ok(()),
             _ => Err(Error::InvalidEvent(self.state, event.clone())),
         }
     }
@@ -158,6 +159,7 @@ impl Game {
                 self.state = State::Plays;
                 self.process_event(event)
             }
+            Event::Comment { .. } => Ok(()),
             _ => Err(Error::InvalidEvent(self.state, event.clone())),
         }
     }
@@ -222,6 +224,7 @@ impl Game {
                 self.data.push(event);
                 Ok(())
             }
+            Event::Comment { .. } => Ok(()),
             _ => Err(Error::InvalidEvent(self.state, event.clone())),
         }
     }
@@ -254,7 +257,7 @@ mod tests {
     use std::iter::FromIterator;
 
     use event::{
-        Advance, Base, DataEventType, Event, Hand, Info, Pitch, PlayDescription, Player, PlayEvent,
+        Advance, Base, DataEventType, Event, Hand, Info, Pitch, PlayDescription, PlayEvent, Player,
         Team,
     };
 

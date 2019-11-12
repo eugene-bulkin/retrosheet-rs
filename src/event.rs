@@ -266,9 +266,11 @@ pub enum PlayDescription {
     /// A sequence of fielder plays. Just one means a flyout/unassisted groundout, while multiple
     /// means the last fielder made the out and the others got the assist.
     ///
+    /// The boolean in the fielder play notes whether the play was an error.
+    ///
     /// If the putout is made at a base not normally covered by the fielder the base runner is given
     /// explicitly in the second field. If not, the field is left as `None`.
-    FielderSequence(Vec<Fielder>, Option<Base>),
+    FielderSequence(Vec<(Fielder, bool)>, Option<Base>),
     /// The batter grounded into a double play, with the base the first out was recorded on.
     GIDP(Vec<Fielder>, Base),
     /// The batter grounded into a triple play. We provide the assists for the first out (and the
@@ -293,8 +295,9 @@ pub enum PlayDescription {
     /// An error by a fielder attempting to field a foul fly ball.
     FoulFlyBallError(Fielder),
     /// A strikeout. May or may not be accompanied by an additional event, for example if there was
-    /// a dropped third strike.
-    Strikeout(Option<Box<PlayDescription>>),
+    /// a dropped third strike. May also be accompanied by a fielder sequence if the dropped third
+    /// strike resulted in a putout.
+    Strikeout(Option<Box<PlayDescription>>, Vec<(Fielder, bool)>),
     /// A walk. May or may not be accompanied by an additional event, describing potential base
     /// running events.
     Walk(Option<Box<PlayDescription>>),

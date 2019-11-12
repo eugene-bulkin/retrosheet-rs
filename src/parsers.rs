@@ -3,8 +3,8 @@ use std::str;
 use nom::{alpha, alphanumeric, digit, not_line_ending};
 
 use event::{
-    Advance, AdvanceParameter, Base, Event, Fielder, FieldParameter, Hand, HitLocation, HitType,
-    Pitch, PlayDescription, Player, PlayEvent, PlayModifier, Team,
+    Advance, AdvanceParameter, Base, Event, FieldParameter, Fielder, Hand, HitLocation, HitType,
+    Pitch, PlayDescription, PlayEvent, PlayModifier, Player, Team,
 };
 
 named!(bytes_to_u8 (&[u8]) -> u8, map_res!(map_res!(digit, str::from_utf8), str::parse::<u8>));
@@ -59,7 +59,11 @@ named!(play_desc_gitp (&[u8]) -> PlayDescription, do_parse!(
 ));
 
 named!(play_desc_fielding (&[u8]) -> PlayDescription, do_parse!(
-    fielders: many1!(fielder) >>
+    fielders: many1!(do_parse!(
+        error: opt!(tag!("E")) >>
+        fielder: fielder >>
+        (fielder, error.is_some())
+    )) >>
     abnormal_putout: opt!(complete!(do_parse!(
         tag!("(") >>
         runner: base >>
@@ -71,9 +75,14 @@ named!(play_desc_fielding (&[u8]) -> PlayDescription, do_parse!(
 
 named!(play_desc_strikeout (&[u8]) -> PlayDescription, do_parse!(
     tag!("K") >>
+    fielders: many0!(do_parse!(
+        error: opt!(tag!("E")) >>
+        fielder: fielder >>
+        (fielder, error.is_some())
+    )) >>
     additional: opt!(complete!(preceded!(opt!(tag!("+")),
                                          map!(play_description, Box::new)))) >>
-    (PlayDescription::Strikeout(additional))
+    (PlayDescription::Strikeout(additional, fielders))
 ));
 
 named!(play_desc_walk (&[u8]) -> PlayDescription, do_parse!(
@@ -245,6 +254,7 @@ named!(modifier (&[u8]) -> PlayModifier, do_parse!(
         value!(PlayModifier::SacrificeFly, tag!("SF")) |
         value!(PlayModifier::SacrificeHit, tag!("SH")) |
         map!(preceded!(tag!("TH"), bytes_to_u8), PlayModifier::ThrowToBase) |
+        value!(PlayModifier::ThrowToBase(4), tag!("THH")) |
         value!(PlayModifier::Throw, tag!("TH")) |
         value!(PlayModifier::UnspecifiedTriplePlay, tag!("TP")) |
         value!(PlayModifier::UmpireInterference, tag!("UINT")) |
@@ -273,7 +283,7 @@ named!(advance_parameter (&[u8]) -> AdvanceParameter, do_parse!(
             base: opt!(base) >>
             (AdvanceParameter::ThrowingError(f, base))
         ) |
-        value!(AdvanceParameter::WithThrow, tag!("TH")) |
+        value!(AdvanceParameter::WithThrow, pair!(tag!("TH"), opt!(one_of!("23H")))) |
         do_parse!(
             params: field_parameters >>
             opt!(tag!("/TH")) >>
@@ -858,13 +868,10 @@ mod tests {
 
     #[test]
     fn test_play_description() {
-        let desc1 = PlayDescription::FielderSequence(vec![2, 3], None);
-        let desc2 = PlayDescription::Strikeout(Some(Box::new(PlayDescription::FielderSequence(
-            vec![2, 3],
-            None,
-        ))));
-        let desc3 = PlayDescription::Strikeout(Some(Box::new(PlayDescription::PassedBall)));
-        let desc4 = PlayDescription::Strikeout(Some(Box::new(PlayDescription::WildPitch)));
+        let desc1 = PlayDescription::FielderSequence(vec![(2, false), (3, false)], None);
+        let desc2 = PlayDescription::Strikeout(None, vec![(2, false), (3, false)]);
+        let desc3 = PlayDescription::Strikeout(Some(Box::new(PlayDescription::PassedBall)), vec![]);
+        let desc4 = PlayDescription::Strikeout(Some(Box::new(PlayDescription::WildPitch)), vec![]);
         let desc5 = PlayDescription::Walk(Some(Box::new(PlayDescription::WildPitch)));
         let desc6 = PlayDescription::LinedIntoDoublePlay {
             first_out: 8,
@@ -895,7 +902,7 @@ mod tests {
             play_description(b"64(2)3")
         );
         assert_parsed!(
-            PlayDescription::FielderSequence(vec![5], None),
+            PlayDescription::FielderSequence(vec![(5, false)], None),
             play_description(b"5")
         );
         assert_parsed!(desc1, play_description(b"23"));
@@ -903,7 +910,10 @@ mod tests {
         assert_parsed!(PlayDescription::PassedBall, play_description(b"PB"));
         assert_parsed!(PlayDescription::GroundRuleDouble, play_description(b"DGR"));
         assert_parsed!(PlayDescription::WildPitch, play_description(b"WP"));
-        assert_parsed!(PlayDescription::Strikeout(None), play_description(b"K"));
+        assert_parsed!(
+            PlayDescription::Strikeout(None, vec![]),
+            play_description(b"K")
+        );
         assert_parsed!(PlayDescription::IntentionalWalk, play_description(b"I"));
         assert_parsed!(PlayDescription::IntentionalWalk, play_description(b"IW"));
         assert_parsed!(desc2, play_description(b"K23"));
@@ -999,7 +1009,7 @@ mod tests {
     #[test]
     fn test_play_event() {
         let event1 = PlayEvent {
-            description: PlayDescription::FielderSequence(vec![2, 3], None),
+            description: PlayDescription::FielderSequence(vec![(2, false), (3, false)], None),
             modifiers: vec![PlayModifier::HitWithLocation(HitType::GroundBall, None)],
             advances: vec![Advance {
                 from: Base::First,
@@ -1080,7 +1090,10 @@ mod tests {
             ],
         };
         let event5 = PlayEvent {
-            description: PlayDescription::FielderSequence(vec![5, 4], Some(Base::First)),
+            description: PlayDescription::FielderSequence(
+                vec![(5, false), (4, false)],
+                Some(Base::First),
+            ),
             modifiers: vec![
                 PlayModifier::ForceOut,
                 PlayModifier::HitWithLocation(HitType::GroundBall, Some(HitLocation::_5)),
@@ -1100,12 +1113,58 @@ mod tests {
                 },
             ],
         };
-
+        let event6 = PlayEvent {
+            description: PlayDescription::FielderSequence(vec![(7, false)], None),
+            modifiers: vec![
+                PlayModifier::HitWithLocation(HitType::Fly, None),
+                PlayModifier::SacrificeFly,
+            ],
+            advances: vec![
+                Advance {
+                    from: Base::Third,
+                    to: Base::Home,
+                    success: true,
+                    parameters: vec![],
+                },
+                Advance {
+                    from: Base::Second,
+                    to: Base::Third,
+                    success: true,
+                    parameters: vec![],
+                },
+                Advance {
+                    from: Base::First,
+                    to: Base::Second,
+                    success: true,
+                    parameters: vec![AdvanceParameter::WithThrow],
+                },
+            ],
+        };
+        let event7 = PlayEvent {
+            description: PlayDescription::FielderSequence(vec![(4, false), (3, true)], None),
+            modifiers: vec![PlayModifier::HitWithLocation(HitType::GroundBall, None)],
+            advances: vec![
+                Advance {
+                    from: Base::Second,
+                    to: Base::Third,
+                    success: true,
+                    parameters: vec![],
+                },
+                Advance {
+                    from: Base::First,
+                    to: Base::Second,
+                    success: true,
+                    parameters: vec![],
+                },
+            ],
+        };
         assert_parsed!(event1, play_event(b"23/G-.1-2"));
         assert_parsed!(event2, play_event(b"FC2/G.2X3(265);B-2(TH)"));
         assert_parsed!(event3, play_event(b"S8.2-H;BX2(8U3)"));
         assert_parsed!(event4, play_event(b"S/L9S.3-H;2X3(5/INT);1-2"));
         assert_parsed!(event5, play_event(b"54(1)/FO/G5.3-H;B-1"));
+        assert_parsed!(event6, play_event(b"7/F/SF.3-H;2-3;1-2(THH)"));
+        assert_parsed!(event7, play_event(b"4E3/G.2-3;1-2"));
     }
 
     #[test]
@@ -1114,6 +1173,7 @@ mod tests {
         let play2 = b"play,7,0,finnb001,01,LX,FC2/G.2X3(265);B-2(TH)";
         let play3 = b"play,6,1,heywj001,??,CBFBBS,K";
         let play4 = b"play,3,0,hamib001,12,FCBX,HR/7/F";
+        let play5 = b"play,7,1,cabre001,10,BX,7/F/SF.3-H;2-3;1-2(THH)";
 
         let parsed1 = Event::Play {
             inning: 8,
@@ -1129,7 +1189,7 @@ mod tests {
                 Pitch::BallInPlayBatter,
             ],
             event: PlayEvent {
-                description: PlayDescription::FielderSequence(vec![2, 3], None),
+                description: PlayDescription::FielderSequence(vec![(2, false), (3, false)], None),
                 modifiers: vec![PlayModifier::HitWithLocation(HitType::GroundBall, None)],
                 advances: vec![Advance {
                     from: Base::First,
@@ -1182,7 +1242,7 @@ mod tests {
                 Pitch::SwingingStrike,
             ],
             event: PlayEvent {
-                description: PlayDescription::Strikeout(None),
+                description: PlayDescription::Strikeout(None, vec![]),
                 modifiers: vec![],
                 advances: vec![],
             },
