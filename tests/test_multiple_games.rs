@@ -5,11 +5,10 @@ use std::io::Read;
 
 use retrosheet::{Parser, ParserError};
 
-#[test]
-fn test_multiple_games() {
+fn test_game_file(file: &str) {
     let mut parser = Parser::new();
 
-    let file_name = format!("{}/test_resources/2016CHN.EVN", env!("CARGO_MANIFEST_DIR"));
+    let file_name = format!("{}/test_resources/{}", env!("CARGO_MANIFEST_DIR"), file);
     let mut file = File::open(file_name).unwrap();
 
     let mut buf: Vec<u8> = vec![];
@@ -31,4 +30,19 @@ fn test_multiple_games() {
             _ => assert!(false, "{}", e),
         },
     }
+}
+
+#[test]
+fn test_2015bal() {
+    test_game_file("2015BAL.EVA");
+}
+
+#[test]
+fn test_2016chn() {
+    test_game_file("2016CHN.EVN");
+}
+
+#[test]
+fn test_2017mil() {
+    test_game_file("2017MIL.EVN");
 }

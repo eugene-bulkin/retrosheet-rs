@@ -121,7 +121,8 @@ impl Parser {
                             // valid location.
                         }
                         _ => {
-                            try!(game.process_event(evt).map_err(Error::GameProcessingError));
+                            game.process_event(evt)
+                                .map_err(Error::GameProcessingError)?;
                         }
                     }
                 }
@@ -134,7 +135,7 @@ impl Parser {
                     if let State::Game(mut game) =
                         ::std::mem::replace(&mut self.state, State::Empty)
                     {
-                        try!(game.finish().map_err(Error::GameProcessingError));
+                        game.finish().map_err(Error::GameProcessingError)?;
                         result.push(game);
                     }
                 }
@@ -149,7 +150,7 @@ impl Parser {
                 // We reached the end of input after a game, so make sure the game can be validly
                 // finished, and then add it.
                 if let State::Game(mut game) = ::std::mem::replace(&mut self.state, State::Empty) {
-                    try!(game.finish().map_err(Error::GameProcessingError));
+                    game.finish().map_err(Error::GameProcessingError)?;
                     result.push(game);
                 }
             }
@@ -164,7 +165,7 @@ mod tests {
     use std::iter::FromIterator;
 
     use event::{
-        Advance, Base, DataEventType, Event, Info, Pitch, PlayDescription, Player, PlayEvent, Team,
+        Advance, Base, DataEventType, Event, Info, Pitch, PlayDescription, PlayEvent, Player, Team,
     };
     use game::{Game, GameError, GameState, Substitution};
 
