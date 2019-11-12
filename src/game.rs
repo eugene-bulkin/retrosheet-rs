@@ -154,7 +154,9 @@ impl Game {
                 self.starters.insert(player);
                 Ok(())
             }
-            Event::Play { .. } => {
+            // A batting adjustment can happen here if a switch hitter hits leadoff; that counts as
+            // part of plays.
+            Event::Play { .. } | Event::BattingAdjustment { .. } => {
                 // Done with starters, so start play-by-play.
                 self.state = State::Plays;
                 self.process_event(event)

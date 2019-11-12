@@ -43,6 +43,11 @@ fn test_2016chn() {
 }
 
 #[test]
+fn test_2015bos() {
+    test_game_file("2015BOS.EVA");
+}
+
+#[test]
 fn test_2017mil() {
     test_game_file("2017MIL.EVN");
 }

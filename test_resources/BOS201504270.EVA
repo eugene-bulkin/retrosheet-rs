@@ -1,0 +1,154 @@
+id,BOS201504270
+version,2
+info,visteam,TOR
+info,hometeam,BOS
+info,site,BOS07
+info,date,2015/04/27
+info,number,0
+info,starttime,6:43PM
+info,daynight,night
+info,usedh,true
+info,umphome,hamaa901
+info,ump1b,eddid901
+info,ump2b,johna901
+info,ump3b,millb901
+info,howscored,park
+info,pitches,pitches
+info,oscorer,ellib701
+info,temp,49
+info,winddir,ltor
+info,windspeed,15
+info,fieldcond,unknown
+info,precip,unknown
+info,sky,unknown
+info,timeofgame,168
+info,attendance,34739
+info,wp,uehak001
+info,lp,castm002
+info,save,
+start,reyej001,"Jose Reyes",0,1,6
+start,travd001,"Devon Travis",0,2,4
+start,donaj001,"Josh Donaldson",0,3,5
+start,bautj002,"Jose Bautista",0,4,10
+start,encae001,"Edwin Encarnacion",0,5,3
+start,martr004,"Russell Martin",0,6,2
+start,saunm001,"Michael Saunders",0,7,9
+start,pillk001,"Kevin Pillar",0,8,8
+start,pompd001,"Dalton Pompey",0,9,7
+start,sanca006,"Aaron Sanchez",0,0,1
+start,bettm001,"Mookie Betts",1,1,8
+start,pedrd001,"Dustin Pedroia",1,2,4
+start,ortid001,"David Ortiz",1,3,10
+start,ramih003,"Hanley Ramirez",1,4,7
+start,sandp001,"Pablo Sandoval",1,5,5
+start,navad002,"Daniel Nava",1,6,3
+start,holtb002,"Brock Holt",1,7,9
+start,bogax001,"Xander Bogaerts",1,8,6
+start,hanir001,"Ryan Hanigan",1,9,2
+start,kellj001,"Joe Kelly",1,0,1
+badj,reyej001,R
+play,1,0,reyej001,01,CX,S7/G
+play,1,0,travd001,20,1B*B>C,SB2
+play,1,0,travd001,21,1B*B>C.X,S9/L.2-H
+play,1,0,donaj001,32,BBBF1F>B,W.1-2
+play,1,0,bautj002,12,FCBFS,K
+play,1,0,encae001,01,CX,9/F
+play,1,0,martr004,32,*BFBBF>F>F>F>X,D7/L+.2-H;1-H
+play,1,0,saunm001,31,BBCBX,8/F
+play,1,1,bettm001,32,CBCBFBB,W
+play,1,1,pedrd001,22,C*BB+1>F*B,CS2(24)
+play,1,1,pedrd001,32,C*BB+1>F*B.*B,W
+play,1,1,ortid001,21,CBBX,D7/L.1-3
+play,1,1,ramih003,32,CS*B*BBS,K
+play,1,1,sandp001,30,BBBX,S7/L.3-H;2-H
+play,1,1,navad002,02,CCFC,K
+play,2,0,pillk001,12,CSBFC,K
+play,2,0,pompd001,02,CFS,K
+badj,reyej001,R
+play,2,0,reyej001,12,CCBFFS,K
+play,2,1,holtb002,32,BBCBCC,K
+play,2,1,bogax001,12,CFBFX,53/G-
+play,2,1,hanir001,22,BBCCC,K
+play,3,0,travd001,02,CCX,HR/8/F
+play,3,0,donaj001,32,BCBFBS,K
+play,3,0,bautj002,22,BCCBC,K
+play,3,0,encae001,02,CCS,K
+play,3,1,bettm001,32,BBBCCS,K
+play,3,1,pedrd001,01,CX,8/F
+play,3,1,ortid001,22,BFBCX,9/L-
+play,4,0,martr004,30,BBBB,W
+play,4,0,saunm001,31,*B+1*BF1BB,W.1-2
+play,4,0,pillk001,22,LMBBX,S7/G.2-H;1-2
+play,4,0,pompd001,00,X,5/BP
+badj,reyej001,R
+play,4,0,reyej001,00,X,6(1)3/GDP
+play,4,1,ramih003,12,BCSS,K
+play,4,1,sandp001,32,BBBCSX,HR/89/L
+play,4,1,navad002,01,CX,3/G
+play,4,1,holtb002,12,BFFFFFX,43/G
+play,5,0,travd001,12,CBCFFS,K
+play,5,0,donaj001,22,BFBFS,K
+play,5,0,bautj002,11,BCX,1/G
+play,5,1,bogax001,12,CBSFS,K
+play,5,1,hanir001,22,CBFBX,13/G
+play,5,1,bettm001,22,CBCFBX,D7/L
+play,5,1,pedrd001,12,FTBX,S1/G-.2-H(E1/TH)(UR)(NR);B-2
+play,5,1,ortid001,00,X,63/G
+play,6,0,encae001,00,,NP
+sub,craia001,"Allen Craig",1,5,3
+play,6,0,encae001,00,,NP
+sub,navad002,"Daniel Nava",1,6,9
+play,6,0,encae001,00,,NP
+sub,holtb002,"Brock Holt",1,7,5
+com,"Red Sox third baseman Pablo Sandoval left the game due to an injured neck"
+play,6,0,encae001,22,...BCBSX,43/G+
+play,6,0,martr004,01,SX,13/G-
+play,6,0,saunm001,02,CFS,K
+play,6,1,ramih003,11,FBX,23/G-
+play,6,1,craia001,12,.CSBX,53/G
+play,6,1,navad002,00,,NP
+sub,loupa001,"Aaron Loup",0,0,1
+badj,navad002,L
+play,6,1,navad002,01,.CX,153/G-
+play,7,0,pillk001,00,,NP
+sub,ogana001,"Alexi Ogando",1,0,1
+play,7,0,pillk001,22,.BCBFX,D7/F
+play,7,0,pompd001,00,X,9/F.2-3
+badj,reyej001,R
+play,7,0,reyej001,22,BCCBS,K
+play,7,0,travd001,10,BX,63/G
+play,7,1,holtb002,02,CCX,5/L
+play,7,1,bogax001,11,BCX,4/P
+play,7,1,hanir001,01,CX,43/G
+play,8,0,donaj001,00,X,3/G
+play,8,0,bautj002,30,BBB*B,W
+play,8,0,encae001,00,X,7/L
+play,8,0,martr004,22,CBFFBS,K
+play,8,1,bettm001,00,,NP
+sub,osunr001,"Roberto Osuna",0,0,1
+play,8,1,bettm001,10,.BX,S7/L
+play,8,1,pedrd001,31,BBBCX,S7/L.1-2
+play,8,1,ortid001,10,BB,WP.2-3;1-2
+play,8,1,ortid001,30,BB.II,IW
+play,8,1,ramih003,21,BBFX,7/L/SF.3-H
+play,8,1,craia001,32,SBFBBFFC,K
+play,8,1,navad002,01,CX,5/L
+play,9,0,saunm001,00,,NP
+sub,uehak001,"Koji Uehara",1,0,1
+play,9,0,saunm001,22,.CBSBS,K
+play,9,0,pillk001,12,CFFFBFS,K
+play,9,0,pompd001,12,BFSX,5/P
+play,9,1,holtb002,00,,NP
+sub,castm002,"Miguel Castro",0,0,1
+play,9,1,holtb002,22,.BFBSS,K
+play,9,1,bogax001,32,BBBCCX,S7/G+
+play,9,1,hanir001,00,X,S8/L.1-2
+play,9,1,bettm001,00,B,WP.2-3;1-2
+play,9,1,bettm001,10,B.X,S8/G+.3-H;2-3
+data,er,sanca006,3
+data,er,loupa001,0
+data,er,osunr001,1
+data,er,castm002,1
+data,er,kellj001,5
+data,er,ogana001,0
+data,er,uehak001,0

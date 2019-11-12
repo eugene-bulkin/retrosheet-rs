@@ -166,8 +166,15 @@ named!(play_desc_ltp (&[u8]) -> PlayDescription, do_parse!(
     })
 ));
 
+named!(stolen_base (&[u8]) -> (Base, bool), do_parse!(
+    tag!("SB") >>
+    base: base >>
+    is_unearned: opt!(complete!(tag!("(UR)"))) >>
+    ((base, is_unearned.is_some()))
+));
+
 named!(play_description (&[u8]) -> PlayDescription, alt_complete!(
-    map!(separated_nonempty_list!(tag!(";"), preceded!(tag!("SB"), base)), PlayDescription::StolenBase) |
+    map!(complete!(separated_nonempty_list!(tag!(";"), stolen_base)), PlayDescription::StolenBase) |
     value!(PlayDescription::OtherAdvance, tag!("OA")) |
     value!(PlayDescription::IntentionalWalk, tag!("IW")) |
     value!(PlayDescription::IntentionalWalk, tag!("I")) |
@@ -957,12 +964,16 @@ mod tests {
         assert_parsed!(PlayDescription::HitByPitch, play_description(b"HP"));
         assert_parsed!(PlayDescription::NoPlay, play_description(b"NP"));
         assert_parsed!(
-            PlayDescription::StolenBase(vec![Base::Third]),
+            PlayDescription::StolenBase(vec![(Base::Third, false)]),
             play_description(b"SB3")
         );
         assert_parsed!(
-            PlayDescription::StolenBase(vec![Base::Third, Base::Second]),
+            PlayDescription::StolenBase(vec![(Base::Third, false), (Base::Second, false)]),
             play_description(b"SB3;SB2")
+        );
+        assert_parsed!(
+            PlayDescription::StolenBase(vec![(Base::Home, true), (Base::Second, false)]),
+            play_description(b"SBH(UR);SB2")
         );
         assert_parsed!(
             PlayDescription::CatcherInterference(1),
@@ -1158,6 +1169,13 @@ mod tests {
                 },
             ],
         };
+
+        let event8 = PlayEvent {
+            description: PlayDescription::StolenBase(vec![(Base::Home, true), (Base::Second, false)]),
+            modifiers: vec![],
+            advances: vec![],
+        };
+
         assert_parsed!(event1, play_event(b"23/G-.1-2"));
         assert_parsed!(event2, play_event(b"FC2/G.2X3(265);B-2(TH)"));
         assert_parsed!(event3, play_event(b"S8.2-H;BX2(8U3)"));
@@ -1165,6 +1183,7 @@ mod tests {
         assert_parsed!(event5, play_event(b"54(1)/FO/G5.3-H;B-1"));
         assert_parsed!(event6, play_event(b"7/F/SF.3-H;2-3;1-2(THH)"));
         assert_parsed!(event7, play_event(b"4E3/G.2-3;1-2"));
+        assert_parsed!(event8, play_event(b"SBH(UR);SB2"));
     }
 
     #[test]
@@ -1173,7 +1192,6 @@ mod tests {
         let play2 = b"play,7,0,finnb001,01,LX,FC2/G.2X3(265);B-2(TH)";
         let play3 = b"play,6,1,heywj001,??,CBFBBS,K";
         let play4 = b"play,3,0,hamib001,12,FCBX,HR/7/F";
-        let play5 = b"play,7,1,cabre001,10,BX,7/F/SF.3-H;2-3;1-2(THH)";
 
         let parsed1 = Event::Play {
             inning: 8,

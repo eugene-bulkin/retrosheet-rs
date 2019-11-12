@@ -317,8 +317,9 @@ pub enum PlayDescription {
     InsideTheParkHomeRun(Vec<Fielder>),
     /// No play was made. Used when a substitution immediately follows.
     NoPlay,
-    /// Stolen base(s), with the base information.
-    StolenBase(Vec<Base>),
+    /// Stolen base(s), with the base information. If the boolean is set to true, that means it was
+    /// a steal of home where the run is unearned.
+    StolenBase(Vec<(Base, bool)>),
     /// The player was hit by a pitch.
     HitByPitch,
     /// Catcher interference. Technically, this also covers interference by the pitcher or first
