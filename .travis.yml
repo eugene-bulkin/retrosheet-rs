@@ -1,8 +1,14 @@
 language: rust
+script:
+  - cargo build --verbose
+  - cargo clippy --verbose
+  - cargo test --verbose
 rust:
   - stable
   - beta
   - nightly
+
+cache: cargo
 
 before_install:
   - sudo apt-get update
