@@ -19,7 +19,7 @@ fn test_game_file(file: &str) {
     match result {
         Ok(_) => {}
         Err(e) => match e {
-            ParserError::BytesRemaining(s) => {
+            ParserError::StringRemaining(s) => {
                 let first_chunk: Vec<u8> = s.bytes().into_iter().take(50).collect();
                 assert!(
                     false,

@@ -6,7 +6,7 @@ pub use self::Error as ParserError;
 
 #[derive(Clone, Debug, PartialEq)]
 /// An error that occurs while parsing an event file.
-pub enum Error<'a> {
+pub enum Error {
     /// The parser received an unexpected `game_id` event.
     UnexpectedGameId {
         /// The id of the game already registered.
@@ -15,12 +15,12 @@ pub enum Error<'a> {
     /// The parser received an game event without a game having been started.
     NoGame(Event),
     /// There were bytes remaining after attempting to parse the event file.
-    BytesRemaining(&'a str),
+    StringRemaining(String),
     /// An error occurred while processing events for a game.
     GameProcessingError(GameError),
 }
 
-impl<'a> ::std::fmt::Display for Error<'a> {
+impl ::std::fmt::Display for Error {
     fn fmt(&self, f: &mut ::std::fmt::Formatter) -> ::std::fmt::Result {
         match *self {
             Error::UnexpectedGameId {
@@ -35,8 +35,8 @@ impl<'a> ::std::fmt::Display for Error<'a> {
                 "event {:?} was received before a game was registered",
                 evt
             ),
-            Error::BytesRemaining(ref bytes) => {
-                write!(f, "bytes remaining after parsing completed: {:?}", bytes)
+            Error::StringRemaining(ref s) => {
+                write!(f, "string remaining after parsing completed: {:?}", s)
             }
             Error::GameProcessingError(ref e) => write!(f, "{}", e),
         }
@@ -85,7 +85,7 @@ impl Parser {
     /// # Errors
     /// The parser expects the byte-data coming in to be a *complete* event file, so any bytes
     /// remaining are counted as an error. Any other errors are from invalid events.
-    pub fn parse<'s, 'i>(&'s mut self, mut bytes: &'i str) -> Result<Vec<Game>, Error<'i>> {
+    pub fn parse(&mut self, mut bytes: &str) -> Result<Vec<Game>, Error> {
         let mut result = Vec::new();
         while let Ok((rest, evt)) = event(bytes) {
             let mut new_game: Option<Game> = None;
@@ -142,7 +142,7 @@ impl Parser {
             bytes = rest;
         }
         if !bytes.is_empty() {
-            Err(Error::BytesRemaining(bytes))
+            Err(Error::StringRemaining(bytes.to_string()))
         } else {
             if self.state != State::Empty {
                 // We reached the end of input after a game, so make sure the game can be validly
@@ -307,7 +307,7 @@ id,CHN201604110",
 version,2
 foo\n\n",
         );
-        assert_eq!(Err(Error::BytesRemaining("foo\n\n")), result);
+        assert_eq!(Err(Error::StringRemaining("foo\n\n".to_string())), result);
     }
 
     #[test]
@@ -350,8 +350,8 @@ foo\n\n",
         );
 
         assert_eq!(
-            format!("bytes remaining after parsing completed: {:?}", bytes),
-            format!("{}", Error::BytesRemaining(bytes))
+            format!("string remaining after parsing completed: {:?}", bytes),
+            format!("{}", Error::StringRemaining(bytes.to_string()))
         );
 
         assert_eq!(

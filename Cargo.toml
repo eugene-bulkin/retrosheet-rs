@@ -1,6 +1,6 @@
 [package]
 name = "retrosheet"
-version = "0.2.3"
+version = "0.2.4"
 authors = ["Eugene Bulkin <eugene.bulkin2@gmail.com>"]
 
 description = "A Rust interface for reading Retrosheet data."

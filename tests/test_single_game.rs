@@ -16,7 +16,7 @@ fn test_single_game(file: &str) {
 
     if let Err(e) = parser.parse(&buf) {
         match e {
-            ParserError::BytesRemaining(s) => {
+            ParserError::StringRemaining(s) => {
                 let first_bytes: Vec<u8> = s
                     .bytes()
                     .take_while(|&byte| byte != b'\r' && byte != b'\n')
