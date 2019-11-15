@@ -1,497 +1,621 @@
 use std::str;
 
-use nom::{alpha, alphanumeric, digit, not_line_ending};
+use nom::{
+    branch::alt,
+    bytes::{
+        complete::{take, take_until},
+        complete::tag,
+    },
+    character::complete::{alpha1, digit1, none_of, not_line_ending},
+    character::complete::one_of,
+    combinator::{complete, opt, recognize},
+    combinator::{map, map_res},
+    combinator::value,
+    IResult,
+    multi::many0,
+    multi::many1,
+    sequence::{pair, tuple},
+    sequence::{preceded, terminated},
+};
+use nom::character::complete::alphanumeric1;
+use nom::multi::{separated_list, separated_nonempty_list};
 
 use event::{
-    Advance, AdvanceParameter, Base, Event, FieldParameter, Fielder, Hand, HitLocation, HitType,
-    Pitch, PlayDescription, PlayEvent, PlayModifier, Player, Team,
+    Advance, AdvanceParameter, Base, Event, Fielder, FieldParameter, Hand, HitLocation, HitType,
+    Pitch, PlayDescription, Player, PlayEvent, PlayModifier, Team,
 };
 
-named!(bytes_to_u8 (&[u8]) -> u8, map_res!(map_res!(digit, str::from_utf8), str::parse::<u8>));
+fn to_u8(input: &str) -> IResult<&str, u8> {
+    map_res(digit1, str::parse::<u8>)(input)
+}
 
-named!(base (&[u8]) -> Base, alt_complete!(
-    value!(Base::First, tag!("1")) |
-    value!(Base::Second, tag!("2")) |
-    value!(Base::Third, tag!("3")) |
-    value!(Base::Home, tag!("B")) |
-    value!(Base::Home, tag!("H"))
-));
+fn quoted(input: &str) -> IResult<&str, &str> {
+    let (input, _) = tag("\"")(input)?;
+    let (input, result) = take_until("\"")(input)?;
+    let (input, _) = tag("\"")(input)?;
+    Ok((input, result))
+}
 
-named!(fielder (&[u8]) -> Fielder, map!(one_of!("123456789"),
-                                   |c: char| c.to_digit(10).unwrap() as Fielder));
+fn team(input: &str) -> IResult<&str, Team> {
+    alt((value(Team::Visiting, tag("0")), value(Team::Home, tag("1"))))(input)
+}
 
-named!(field_parameters (&[u8]) -> Vec<FieldParameter>, many1!(alt_complete!(
-    value!(FieldParameter::Unknown, tag!("U")) |
-    map!(preceded!(tag!("E"), fielder), FieldParameter::Error) |
-    map!(fielder, FieldParameter::Play)
-)));
+fn base(input: &str) -> IResult<&str, Base> {
+    alt((
+        value(Base::First, tag("1")),
+        value(Base::Second, tag("2")),
+        value(Base::Third, tag("3")),
+        value(Base::Home, tag("B")),
+        value(Base::Home, tag("H")),
+    ))(input)
+}
 
-named!(play_desc_gidp (&[u8]) -> PlayDescription, do_parse!(
-    assists: many1!(fielder) >>
-    tag!("(") >>
-    first_out: base >>
-    tag!(")") >>
-    putout: fielder >>
-    ({
-        let mut fielders = assists;
-        fielders.push(putout);
-        PlayDescription::GIDP(fielders, first_out)
-    })
-));
+fn version(input: &str) -> IResult<&str, Event> {
+    let (input, _) = terminated(tag("version"), tag(","))(input)?;
+    let (input, version) = to_u8(input)?;
 
-named!(play_desc_gitp (&[u8]) -> PlayDescription, do_parse!(
-    first_assists: many1!(fielder) >>
-    tag!("(") >>
-    first_out: base >>
-    tag!(")") >>
-    second_assists: many1!(fielder) >>
-    tag!("(") >>
-    second_out: base >>
-    tag!(")") >>
-    putout: fielder >>
-    (PlayDescription::GITP {
-        first_assists: first_assists,
-        first_out: first_out,
-        second_assists: second_assists,
-        second_out: second_out,
-        putout: putout
-    })
-));
+    Ok((input, Event::Version { version }))
+}
 
-named!(play_desc_fielding (&[u8]) -> PlayDescription, do_parse!(
-    fielders: many1!(do_parse!(
-        error: opt!(tag!("E")) >>
-        fielder: fielder >>
+fn game_id(input: &str) -> IResult<&str, Event> {
+    let (input, _) = terminated(tag("id"), tag(","))(input)?;
+    let (input, id) = map(take(12usize), String::from)(input)?;
+
+    Ok((input, Event::GameId { id }))
+}
+
+fn data(input: &str) -> IResult<&str, Event> {
+    let (input, _) = terminated(tag("data"), tag(","))(input)?;
+    let (input, data_type) = map(terminated(alpha1, tag(",")), Into::into)(input)?;
+    let (input, player) = map(terminated(take_until(","), tag(",")), String::from)(input)?;
+    let (input, value) = map(not_line_ending, String::from)(input)?;
+
+    Ok((
+        input,
+        Event::Data {
+            data_type,
+            player,
+            value,
+        },
+    ))
+}
+
+fn player_entry(input: &str) -> IResult<&str, Player> {
+    let (input, id) = map(terminated(take_until(","), tag(",")), String::from)(input)?;
+    let (input, name) = map(terminated(quoted, tag(",")), String::from)(input)?;
+    let (input, team) = terminated(team, tag(","))(input)?;
+    let (input, batting_pos) = terminated(to_u8, tag(","))(input)?;
+    let (input, fielding_pos) = to_u8(input)?;
+
+    Ok((
+        input,
+        Player {
+            id,
+            name,
+            team,
+            batting_pos,
+            fielding_pos,
+        },
+    ))
+}
+
+fn start(input: &str) -> IResult<&str, Event> {
+    let (input, _) = terminated(tag("start"), tag(","))(input)?;
+    let (input, player) = player_entry(input)?;
+
+    Ok((input, Event::Start { player }))
+}
+
+fn sub(input: &str) -> IResult<&str, Event> {
+    let (input, _) = terminated(tag("sub"), tag(","))(input)?;
+    let (input, player) = player_entry(input)?;
+
+    Ok((input, Event::Sub { player }))
+}
+
+fn hit_location_mods(input: &str) -> IResult<&str, &str> {
+    alt((
+        tag("LDF"),
+        tag("LSF"),
+        tag("LF"),
+        tag("LS"),
+        tag("LD"),
+        tag("XD"),
+        tag("DF"),
+        tag("MS"),
+        tag("MD"),
+        tag("S"),
+        tag("F"),
+        tag("M"),
+        tag("D"),
+        tag("L"),
+    ))(input)
+}
+
+fn hit_location(input: &str) -> IResult<&str, HitLocation> {
+    map(recognize(pair(digit1, opt(hit_location_mods))), Into::into)(input)
+}
+
+fn hit_with_location(input: &str) -> IResult<&str, PlayModifier> {
+    let (input, hit_type) = alt((
+        value(HitType::PopFly, tag("P")),
+        value(HitType::PopUpBunt, tag("BP")),
+        value(HitType::Fly, tag("F")),
+        value(HitType::GroundBall, tag("G")),
+        value(HitType::GroundBallBunt, tag("BG")),
+        value(HitType::LineDrive, tag("L")),
+    ))(input)?;
+    let (input, hit_location) = opt(hit_location)(input)?;
+    Ok((input, PlayModifier::HitWithLocation(hit_type, hit_location)))
+}
+
+fn modifier(input: &str) -> IResult<&str, PlayModifier> {
+    let (input, modifier) = alt((
+        alt((
+            value(PlayModifier::AppealPlay, tag("AP")),
+            value(PlayModifier::BuntFoul, tag("BF")),
+            value(PlayModifier::BuntGroundedIntoDoublePlay, tag("BGDP")),
+            value(PlayModifier::BatterInterference, tag("BINT")),
+            value(PlayModifier::LineDriveBunt, tag("BL")),
+            value(PlayModifier::BattingOutOfTurn, tag("BOOT")),
+            value(PlayModifier::BuntPoppedIntoDoublePlay, tag("BPDP")),
+            value(PlayModifier::RunnerHitByBattedBall, tag("BR")),
+            value(PlayModifier::CourtesyBatter, tag("COUB")),
+            value(PlayModifier::CourtesyFielder, tag("COUF")),
+            value(PlayModifier::CourtesyRunner, tag("COUR")),
+            value(PlayModifier::CalledThirdStrike, tag("C")),
+            value(PlayModifier::UnspecifiedDoublePlay, tag("DP")),
+            map(preceded(tag("E"), to_u8), PlayModifier::Error),
+            value(PlayModifier::FlyBallDoublePlay, tag("FDP")),
+            value(PlayModifier::FanInterference, tag("FINT")),
+            value(PlayModifier::Foul, tag("FL")),
+            value(PlayModifier::ForceOut, tag("FO")),
+            value(PlayModifier::GroundBallDoublePlay, tag("GDP")),
+            value(PlayModifier::GroundBallTriplePlay, tag("GTP")),
+            value(PlayModifier::InfieldFlyRule, tag("IF")),
+        )),
+        alt((
+            value(PlayModifier::Interference, tag("INT")),
+            value(PlayModifier::InsideTheParkHR, tag("IPHR")),
+            value(PlayModifier::LinedIntoDoublePlay, tag("LDP")),
+            value(PlayModifier::LinedIntoTriplePlay, tag("LTP")),
+            value(PlayModifier::ManagerChallenge, tag("MREV")),
+            value(PlayModifier::NoDoublePlay, tag("NDP")),
+            value(PlayModifier::Obstruction, tag("OBS")),
+            value(PlayModifier::RunnerPassedAnotherRunner, tag("PASS")),
+            map(preceded(tag("R"), to_u8), PlayModifier::Relay),
+            value(PlayModifier::RunnerInterference, tag("RINT")),
+            value(PlayModifier::SacrificeFly, tag("SF")),
+            value(PlayModifier::SacrificeHit, tag("SH")),
+            map(preceded(tag("TH"), to_u8), PlayModifier::ThrowToBase),
+            value(PlayModifier::ThrowToBase(4), tag("THH")),
+            value(PlayModifier::Throw, tag("TH")),
+            value(PlayModifier::UnspecifiedTriplePlay, tag("TP")),
+            value(PlayModifier::UmpireInterference, tag("UINT")),
+            value(PlayModifier::UmpireReview, tag("UREV")),
+            complete(hit_with_location),
+            map(hit_location, PlayModifier::HitLocation),
+        )),
+    ))(input)?;
+    // This is undocumented on the guide... no idea what this is.
+    let (input, _) = opt(one_of("+-"))(input)?;
+
+    Ok((input, modifier))
+}
+
+fn fielder(input: &str) -> IResult<&str, Fielder> {
+    map(one_of("123456789"), |c: char| {
+        c.to_digit(10).unwrap() as Fielder
+    })(input)
+}
+
+fn field_parameters(input: &str) -> IResult<&str, Vec<FieldParameter>> {
+    many1(alt((
+        value(FieldParameter::Unknown, tag("U")),
+        map(preceded(tag("E"), fielder), FieldParameter::Error),
+        map(fielder, FieldParameter::Play),
+    )))(input)
+}
+
+fn advance_parameter(input: &str) -> IResult<&str, AdvanceParameter> {
+    let (input, _) = tag("(")(input)?;
+    let (input, param) = alt((
+        value(AdvanceParameter::UnearnedRun, tag("UR")),
+        value(AdvanceParameter::NoRBI, tag("NR")),
+        value(AdvanceParameter::NoRBI, tag("NORBI")),
+        value(AdvanceParameter::RBI, tag("RBI")),
+        value(AdvanceParameter::TeamUnearnedRun, tag("TUR")),
+        map(
+            terminated(fielder, tag("/INT")),
+            AdvanceParameter::Interference,
+        ),
+        map(
+            tuple((tag("E"), fielder, tag("/TH"), opt(base))),
+            |(_, f, _, base)| AdvanceParameter::ThrowingError(f, base),
+        ),
+        value(
+            AdvanceParameter::WithThrow,
+            pair(tag("TH"), opt(one_of("23H"))),
+        ),
+        map(tuple((field_parameters, opt(tag("/TH")))), |(params, _)| {
+            AdvanceParameter::FieldingPlay(params)
+        }),
+    ))(input)?;
+    let (input, _) = tag(")")(input)?;
+
+    Ok((input, param))
+}
+
+fn advance(input: &str) -> IResult<&str, Advance> {
+    let (input, from) = base(input)?;
+    let (input, success) = alt((value(true, tag("-")), value(false, tag("X"))))(input)?;
+    let (input, to) = base(input)?;
+    let (input, parameters) = many0(advance_parameter)(input)?;
+
+    Ok((
+        input,
+        Advance {
+            from,
+            to,
+            success,
+            parameters,
+        },
+    ))
+}
+
+///////////////////////
+// Play Descriptions //
+///////////////////////
+
+fn play_desc_gidp(input: &str) -> IResult<&str, PlayDescription> {
+    let (input, assists) = many1(fielder)(input)?;
+    let (input, _) = tag("(")(input)?;
+    let (input, first_out) = base(input)?;
+    let (input, _) = tag(")")(input)?;
+    let (input, putout) = fielder(input)?;
+
+    let mut fielders = assists;
+    fielders.push(putout);
+
+    Ok((input, PlayDescription::GIDP(fielders, first_out)))
+}
+
+fn play_desc_gitp(input: &str) -> IResult<&str, PlayDescription> {
+    let (input, first_assists) = many1(fielder)(input)?;
+    let (input, _) = tag("(")(input)?;
+    let (input, first_out) = base(input)?;
+    let (input, _) = tag(")")(input)?;
+    let (input, second_assists) = many1(fielder)(input)?;
+    let (input, _) = tag("(")(input)?;
+    let (input, second_out) = base(input)?;
+    let (input, _) = tag(")")(input)?;
+    let (input, putout) = fielder(input)?;
+
+    Ok((
+        input,
+        PlayDescription::GITP {
+            first_assists,
+            first_out,
+            second_assists,
+            second_out,
+            putout,
+        },
+    ))
+}
+
+fn abnormal_putout_parser(input: &str) -> IResult<&str, Base> {
+    let (input, _) = tag("(")(input)?;
+    let (input, runner) = base(input)?;
+    let (input, _) = tag(")")(input)?;
+    Ok((input, runner))
+}
+
+fn error_fielder(input: &str) -> IResult<&str, (Fielder, bool)> {
+    map(pair(opt(tag("E")), fielder), |(error, fielder)| {
         (fielder, error.is_some())
-    )) >>
-    abnormal_putout: opt!(complete!(do_parse!(
-        tag!("(") >>
-        runner: base >>
-        tag!(")") >>
-        (runner)
-    ))) >>
-    (PlayDescription::FielderSequence(fielders, abnormal_putout))
-));
+    })(input)
+}
 
-named!(play_desc_strikeout (&[u8]) -> PlayDescription, do_parse!(
-    tag!("K") >>
-    fielders: many0!(do_parse!(
-        error: opt!(tag!("E")) >>
-        fielder: fielder >>
-        (fielder, error.is_some())
-    )) >>
-    additional: opt!(complete!(preceded!(opt!(tag!("+")),
-                                         map!(play_description, Box::new)))) >>
-    (PlayDescription::Strikeout(additional, fielders))
-));
+fn play_desc_fielding(input: &str) -> IResult<&str, PlayDescription> {
+    let (input, fielders) = many1(error_fielder)(input)?;
+    let (input, abnormal_putout) = opt(complete(abnormal_putout_parser))(input)?;
 
-named!(play_desc_walk (&[u8]) -> PlayDescription, do_parse!(
-    tag!("W") >>
-    additional: opt!(complete!(preceded!(opt!(tag!("+")),
-                                         map!(play_description, Box::new)))) >>
-    (PlayDescription::Walk(additional))
-));
+    Ok((
+        input,
+        PlayDescription::FielderSequence(fielders, abnormal_putout),
+    ))
+}
 
-named!(play_desc_hr (&[u8]) -> PlayDescription, do_parse!(
-    alt_complete!(tag!("HR") | tag!("H")) >>
-    fielders: many0!(complete!(fielder)) >>
-    ({
+fn play_desc_strikeout(input: &str) -> IResult<&str, PlayDescription> {
+    let (input, _) = tag("K")(input)?;
+    let (input, fielders) = many0(error_fielder)(input)?;
+    let (input, additional) = opt(complete(preceded(
+        opt(tag("+")),
+        map(play_description, Box::new),
+    )))(input)?;
+
+    Ok((input, PlayDescription::Strikeout(additional, fielders)))
+}
+
+fn play_desc_walk(input: &str) -> IResult<&str, PlayDescription> {
+    let (input, _) = tag("W")(input)?;
+    let (input, additional) = opt(complete(preceded(
+        opt(tag("+")),
+        map(play_description, Box::new),
+    )))(input)?;
+
+    Ok((input, PlayDescription::Walk(additional)))
+}
+
+fn play_desc_hr(input: &str) -> IResult<&str, PlayDescription> {
+    let (input, _) = alt((tag("HR"), tag("H")))(input)?;
+    let (input, fielders) = many0(complete(fielder))(input)?;
+
+    Ok((
+        input,
         if fielders.is_empty() {
             PlayDescription::HomeRun
         } else {
             PlayDescription::InsideTheParkHomeRun(fielders)
-        }
-    })
-));
+        },
+    ))
+}
 
-named!(play_desc_pickoff_cs (&[u8]) -> PlayDescription, do_parse!(
-    tag!("POCS") >>
-    base: base >>
-    tag!("(") >>
-    throws: many1!(complete!(fielder)) >>
-    tag!(")") >>
-    (PlayDescription::PickOffCaughtStealing(base, throws))
-));
+fn play_desc_pickoff_cs(input: &str) -> IResult<&str, PlayDescription> {
+    let (input, _) = tag("POCS")(input)?;
+    let (input, base) = base(input)?;
+    let (input, _) = tag("(")(input)?;
+    let (input, throws) = many1(complete(fielder))(input)?;
+    let (input, _) = tag(")")(input)?;
 
-named!(play_desc_cs (&[u8]) -> PlayDescription, do_parse!(
-    tag!("CS") >>
-    base: base >>
-    tag!("(") >>
-    throws: many1!(complete!(fielder)) >>
-    tag!(")") >>
-    (PlayDescription::CaughtStealing(base, throws))
-));
+    Ok((input, PlayDescription::PickOffCaughtStealing(base, throws)))
+}
 
-named!(play_desc_pickoff (&[u8]) -> PlayDescription, do_parse!(
-    tag!("PO") >>
-    base: base >>
-    tag!("(") >>
-    throws: field_parameters >>
-    opt!(tag!("/TH")) >>
-    tag!(")") >>
-    (PlayDescription::PickOff(base, throws))
-));
+fn play_desc_cs(input: &str) -> IResult<&str, PlayDescription> {
+    let (input, _) = tag("CS")(input)?;
+    let (input, base) = base(input)?;
+    let (input, _) = tag("(")(input)?;
+    let (input, throws) = many1(complete(fielder))(input)?;
+    let (input, _) = tag(")")(input)?;
 
-named!(play_desc_ldp (&[u8]) -> PlayDescription, do_parse!(
-    first_out: fielder >>
-    tag!("(B)") >>
-    second_out: many1!(fielder) >>
-    tag!("(") >>
-    second_out_runner: base >>
-    tag!(")") >>
-    (PlayDescription::LinedIntoDoublePlay {
-        first_out: first_out,
-        second_out: second_out,
-        second_out_runner: second_out_runner,
-    })
-));
+    Ok((input, PlayDescription::CaughtStealing(base, throws)))
+}
 
-named!(play_desc_ltp (&[u8]) -> PlayDescription, do_parse!(
-    first_out: fielder >>
-    tag!("(B)") >>
-    second_out: many1!(fielder) >>
-    tag!("(") >>
-    second_out_runner: base >>
-    tag!(")") >>
-    third_out: many1!(fielder) >>
-    tag!("(") >>
-    third_out_runner: base >>
-    tag!(")") >>
-    (PlayDescription::LinedIntoTriplePlay {
-        first_out: first_out,
-        second_out: second_out,
-        second_out_runner: second_out_runner,
-        third_out: third_out,
-        third_out_runner: third_out_runner,
-    })
-));
+fn play_desc_pickoff(input: &str) -> IResult<&str, PlayDescription> {
+    let (input, _) = tag("PO")(input)?;
+    let (input, base) = base(input)?;
+    let (input, _) = tag("(")(input)?;
+    let (input, throws) = field_parameters(input)?;
+    let (input, _) = opt(tag("/TH"))(input)?;
+    let (input, _) = tag(")")(input)?;
 
-named!(stolen_base (&[u8]) -> (Base, bool), do_parse!(
-    tag!("SB") >>
-    base: base >>
-    is_unearned: opt!(complete!(tag!("(UR)"))) >>
-    ((base, is_unearned.is_some()))
-));
+    Ok((input, PlayDescription::PickOff(base, throws)))
+}
 
-named!(play_description (&[u8]) -> PlayDescription, alt_complete!(
-    map!(complete!(separated_nonempty_list!(tag!(";"), stolen_base)), PlayDescription::StolenBase) |
-    value!(PlayDescription::OtherAdvance, tag!("OA")) |
-    value!(PlayDescription::IntentionalWalk, tag!("IW")) |
-    value!(PlayDescription::IntentionalWalk, tag!("I")) |
-    value!(PlayDescription::HitByPitch, tag!("HP")) |
-    value!(PlayDescription::Balk, tag!("BK")) |
-    value!(PlayDescription::PassedBall, tag!("PB")) |
-    value!(PlayDescription::WildPitch, tag!("WP")) |
-    value!(PlayDescription::GroundRuleDouble, tag!("DGR")) |
-    value!(PlayDescription::DefensiveIndifference, tag!("DI")) |
-    value!(PlayDescription::NoPlay, tag!("NP")) |
-    map!(preceded!(tag!("FLE"), fielder), PlayDescription::FoulFlyBallError) |
-    map!(preceded!(tag!("E"), fielder), PlayDescription::Error) |
-    map!(preceded!(tag!("FC"), fielder), PlayDescription::FieldersChoice) |
-    map!(preceded!(tag!("C/E"), fielder), PlayDescription::CatcherInterference) |
-    map!(preceded!(tag!("S"), many0!(fielder)), PlayDescription::Single) |
-    map!(preceded!(tag!("D"), many0!(fielder)), PlayDescription::Double) |
-    map!(preceded!(tag!("T"), many0!(fielder)), PlayDescription::Triple) |
-    play_desc_cs |
-    complete!(play_desc_ltp) |
-    complete!(play_desc_ldp) |
-    complete!(play_desc_pickoff_cs) |
-    complete!(play_desc_pickoff) |
-    play_desc_hr |
-    play_desc_strikeout |
-    play_desc_walk |
-    complete!(play_desc_gitp) |
-    complete!(play_desc_gidp) |
-    play_desc_fielding
-));
+fn play_desc_ldp(input: &str) -> IResult<&str, PlayDescription> {
+    let (input, first_out) = fielder(input)?;
+    let (input, _) = tag("(B)")(input)?;
+    let (input, second_out) = many1(fielder)(input)?;
+    let (input, _) = tag("(")(input)?;
+    let (input, second_out_runner) = base(input)?;
+    let (input, _) = tag(")")(input)?;
 
-named!(hit_location_mods (&[u8]) -> &[u8], alt_complete!(
-    tag!("LDF") | tag!("LSF") | tag!("LF") | tag!("LS") | tag!("LD") | tag!("XD") | tag!("DF") |
-    tag!("MS") | tag!("MD") | tag!("S") | tag!("F") | tag!("M") | tag!("D") | tag!("L")
-));
+    Ok((
+        input,
+        PlayDescription::LinedIntoDoublePlay {
+            first_out,
+            second_out,
+            second_out_runner,
+        },
+    ))
+}
 
-named!(hit_location (&[u8]) -> HitLocation, map!(recognize!(pair!(digit, opt!(complete!(hit_location_mods)))), Into::into));
+fn play_desc_ltp(input: &str) -> IResult<&str, PlayDescription> {
+    let (input, first_out) = fielder(input)?;
+    let (input, _) = tag("(B)")(input)?;
+    let (input, second_out) = many1(fielder)(input)?;
+    let (input, _) = tag("(")(input)?;
+    let (input, second_out_runner) = base(input)?;
+    let (input, _) = tag(")")(input)?;
+    let (input, third_out) = many1(fielder)(input)?;
+    let (input, _) = tag("(")(input)?;
+    let (input, third_out_runner) = base(input)?;
+    let (input, _) = tag(")")(input)?;
 
-named!(hit_with_location (&[u8]) -> PlayModifier, do_parse!(
-    hit_type: alt_complete!(
-        value!(HitType::PopFly, tag!("P")) |
-        value!(HitType::PopUpBunt, tag!("BP")) |
-        value!(HitType::Fly, tag!("F")) |
-        value!(HitType::GroundBall, tag!("G")) |
-        value!(HitType::GroundBallBunt, tag!("BG")) |
-        value!(HitType::LineDrive, tag!("L"))
-    ) >>
-    hit_location: opt!(complete!(hit_location)) >>
-    (PlayModifier::HitWithLocation(hit_type, hit_location))
-));
+    Ok((
+        input,
+        PlayDescription::LinedIntoTriplePlay {
+            first_out,
+            second_out,
+            second_out_runner,
+            third_out,
+            third_out_runner,
+        },
+    ))
+}
 
-named!(modifier (&[u8]) -> PlayModifier, do_parse!(
-    m: alt_complete!(
-        value!(PlayModifier::AppealPlay, tag!("AP")) |
-        value!(PlayModifier::BuntFoul, tag!("BF")) |
-        value!(PlayModifier::BuntGroundedIntoDoublePlay, tag!("BGDP")) |
-        value!(PlayModifier::BatterInterference, tag!("BINT")) |
-        value!(PlayModifier::LineDriveBunt, tag!("BL")) |
-        value!(PlayModifier::BattingOutOfTurn, tag!("BOOT")) |
-        value!(PlayModifier::BuntPoppedIntoDoublePlay, tag!("BPDP")) |
-        value!(PlayModifier::RunnerHitByBattedBall, tag!("BR")) |
-        value!(PlayModifier::CourtesyBatter, tag!("COUB")) |
-        value!(PlayModifier::CourtesyFielder, tag!("COUF")) |
-        value!(PlayModifier::CourtesyRunner, tag!("COUR")) |
-        value!(PlayModifier::CalledThirdStrike, tag!("C")) |
-        value!(PlayModifier::UnspecifiedDoublePlay, tag!("DP")) |
-        map!(preceded!(tag!("E"), bytes_to_u8), PlayModifier::Error) |
-        value!(PlayModifier::FlyBallDoublePlay, tag!("FDP")) |
-        value!(PlayModifier::FanInterference, tag!("FINT")) |
-        value!(PlayModifier::Foul, tag!("FL")) |
-        value!(PlayModifier::ForceOut, tag!("FO")) |
-        value!(PlayModifier::GroundBallDoublePlay, tag!("GDP")) |
-        value!(PlayModifier::GroundBallTriplePlay, tag!("GTP")) |
-        value!(PlayModifier::InfieldFlyRule, tag!("IF")) |
-        value!(PlayModifier::Interference, tag!("INT")) |
-        value!(PlayModifier::InsideTheParkHR, tag!("IPHR")) |
-        value!(PlayModifier::LinedIntoDoublePlay, tag!("LDP")) |
-        value!(PlayModifier::LinedIntoTriplePlay, tag!("LTP")) |
-        value!(PlayModifier::ManagerChallenge, tag!("MREV")) |
-        value!(PlayModifier::NoDoublePlay, tag!("NDP")) |
-        value!(PlayModifier::Obstruction, tag!("OBS")) |
-        value!(PlayModifier::RunnerPassedAnotherRunner, tag!("PASS")) |
-        map!(preceded!(tag!("R"), bytes_to_u8), PlayModifier::Relay) |
-        value!(PlayModifier::RunnerInterference, tag!("RINT")) |
-        value!(PlayModifier::SacrificeFly, tag!("SF")) |
-        value!(PlayModifier::SacrificeHit, tag!("SH")) |
-        map!(preceded!(tag!("TH"), bytes_to_u8), PlayModifier::ThrowToBase) |
-        value!(PlayModifier::ThrowToBase(4), tag!("THH")) |
-        value!(PlayModifier::Throw, tag!("TH")) |
-        value!(PlayModifier::UnspecifiedTriplePlay, tag!("TP")) |
-        value!(PlayModifier::UmpireInterference, tag!("UINT")) |
-        value!(PlayModifier::UmpireReview, tag!("UREV")) |
-        complete!(hit_with_location) |
-        map!(complete!(hit_location), PlayModifier::HitLocation)
-    ) >>
-    // This is undocumented on the guide... no idea what this is.
-    opt!(complete!(one_of!("+-"))) >>
-    (m)
-));
+fn stolen_base(input: &str) -> IResult<&str, (Base, bool)> {
+    let (input, _) = tag("SB")(input)?;
+    let (input, base) = base(input)?;
+    let (input, is_unearned) = map(opt(complete(tag("(UR)"))), |ue| ue.is_some())(input)?;
+    Ok((input, (base, is_unearned)))
+}
 
-named!(advance_parameter (&[u8]) -> AdvanceParameter, do_parse!(
-    tag!("(") >>
-    param: alt!(
-        value!(AdvanceParameter::UnearnedRun, tag!("UR")) |
-        value!(AdvanceParameter::NoRBI, tag!("NR")) |
-        value!(AdvanceParameter::NoRBI, tag!("NORBI")) |
-        value!(AdvanceParameter::RBI, tag!("RBI")) |
-        value!(AdvanceParameter::TeamUnearnedRun, tag!("TUR")) |
-        map!(terminated!(fielder, tag!("/INT")), AdvanceParameter::Interference) |
-        do_parse!(
-            tag!("E") >>
-            f: fielder >>
-            tag!("/TH") >>
-            base: opt!(base) >>
-            (AdvanceParameter::ThrowingError(f, base))
-        ) |
-        value!(AdvanceParameter::WithThrow, pair!(tag!("TH"), opt!(one_of!("23H")))) |
-        do_parse!(
-            params: field_parameters >>
-            opt!(tag!("/TH")) >>
-            (AdvanceParameter::FieldingPlay(params))
-        )
-    ) >>
-    tag!(")") >>
-    (param)
-));
+fn play_description(input: &str) -> IResult<&str, PlayDescription> {
+    alt((
+        alt((
+            map(
+                complete(separated_nonempty_list(tag(";"), stolen_base)),
+                PlayDescription::StolenBase,
+            ),
+            value(PlayDescription::OtherAdvance, tag("OA")),
+            value(PlayDescription::IntentionalWalk, tag("IW")),
+            value(PlayDescription::IntentionalWalk, tag("I")),
+            value(PlayDescription::HitByPitch, tag("HP")),
+            value(PlayDescription::Balk, tag("BK")),
+            value(PlayDescription::PassedBall, tag("PB")),
+            value(PlayDescription::WildPitch, tag("WP")),
+            value(PlayDescription::GroundRuleDouble, tag("DGR")),
+            value(PlayDescription::DefensiveIndifference, tag("DI")),
+            value(PlayDescription::NoPlay, tag("NP")),
+            map(
+                preceded(tag("FLE"), fielder),
+                PlayDescription::FoulFlyBallError,
+            ),
+            map(preceded(tag("E"), fielder), PlayDescription::Error),
+            map(
+                preceded(tag("FC"), fielder),
+                PlayDescription::FieldersChoice,
+            ),
+            map(
+                preceded(tag("C/E"), fielder),
+                PlayDescription::CatcherInterference,
+            ),
+            map(preceded(tag("S"), many0(fielder)), PlayDescription::Single),
+            map(preceded(tag("D"), many0(fielder)), PlayDescription::Double),
+            map(preceded(tag("T"), many0(fielder)), PlayDescription::Triple),
+        )),
+        alt((
+            play_desc_cs,
+            complete(play_desc_ltp),
+            complete(play_desc_ldp),
+            complete(play_desc_pickoff_cs),
+            complete(play_desc_pickoff),
+            play_desc_hr,
+            play_desc_strikeout,
+            play_desc_walk,
+            complete(play_desc_gitp),
+            complete(play_desc_gidp),
+            play_desc_fielding,
+        )),
+    ))(input)
+}
 
-named!(advance (&[u8]) -> Advance, do_parse!(
-    from: base >>
-    success: alt!(map!(tag!("-"), |_| true) |
-                  map!(tag!("X"), |_| false)) >>
-    to: base >>
-    parameters: many0!(advance_parameter) >>
-    (Advance {
-        from: from,
-        to: to,
-        success: success,
-        parameters: parameters,
-    })
-));
+fn play_event(input: &str) -> IResult<&str, PlayEvent> {
+    let (input, play_desc) = complete(play_description)(input)?;
+    let (input, _) = opt(complete(alt((tag("!"), tag("?")))))(input)?;
+    let (input, modifiers) = many0(preceded(tag("/"), complete(modifier)))(input)?;
+    let (input, advances) = opt(complete(preceded(
+        tag("."),
+        separated_list(tag(";"), advance),
+    )))(input)?;
+    let (input, _) = opt(complete(tag("#")))(input)?;
 
-named!(play_event (&[u8]) -> PlayEvent, do_parse!(
-    play_desc: complete!(play_description) >>
-    opt!(complete!(alt!(tag!("!") | tag!("?")))) >>
-    modifiers: many0!(preceded!(tag!("/"), complete!(modifier))) >>
-    advances: opt!(complete!(preceded!(tag!("."),
-                             separated_list!(tag!(";"),
-                                             advance)))) >>
-    opt!(complete!(tag!("#"))) >>
-    (PlayEvent {
-        description: play_desc,
-        modifiers: modifiers,
-        advances: advances.unwrap_or_else(|| vec![]),
-    })
-));
+    Ok((
+        input,
+        PlayEvent {
+            description: play_desc,
+            modifiers,
+            advances: advances.unwrap_or_else(|| vec![]),
+        },
+    ))
+}
 
-named!(pitch (&[u8]) -> Pitch, map!(none_of!(","), Into::into));
+fn pitch(input: &str) -> IResult<&str, Pitch> {
+    map(none_of(","), Into::into)(input)
+}
 
-named!(team (&[u8]) -> Team,
-    alt!(map!(tag!("0"), |_| Team::Visiting) |
-         map!(tag!("1"), |_| Team::Home))
-);
+fn pitch_count(input: &str) -> IResult<&str, Option<(u8, u8)>> {
+    let (input, balls) = one_of("?0123")(input)?;
+    let (input, strikes) = one_of("?012")(input)?;
 
-named!(pitch_count (&[u8]) -> Option<(u8, u8)>, do_parse!(
-    balls: one_of!("?0123") >>
-    strikes: one_of!("?012") >>
-    ({
+    Ok((input, {
         if balls == '?' || strikes == '?' {
             None
         } else {
-            Some((balls.to_digit(10).unwrap() as u8,
-                  strikes.to_digit(10).unwrap() as u8))
+            Some((
+                balls.to_digit(10).unwrap() as u8,
+                strikes.to_digit(10).unwrap() as u8,
+            ))
         }
-    })
-));
+    }))
+}
 
-named!(play (&[u8]) -> Event, do_parse!(
-    terminated!(tag!("play"), tag!(",")) >>
-    inning: map_res!(map_res!(digit, str::from_utf8), str::parse::<u8>) >>
-    tag!(",") >>
-    team: terminated!(team, tag!(",")) >>
-    player: map!(map_res!(take_until_and_consume!(","), str::from_utf8), String::from) >>
-    count: terminated!(pitch_count, tag!(",")) >>
-    pitches: many0!(pitch) >>
-    tag!(",") >>
-    play_event: play_event >>
-    (Event::Play {
-        inning: inning,
-        team: team,
-        player: player,
-        count: count,
-        pitches: pitches,
-        event: play_event,
-    })
-));
+fn play(input: &str) -> IResult<&str, Event> {
+    let (input, _) = terminated(tag("play"), tag(","))(input)?;
+    let (input, inning) = map_res(digit1, str::parse::<u8>)(input)?;
+    let (input, _) = tag(",")(input)?;
+    let (input, team) = terminated(team, tag(","))(input)?;
+    let (input, player) = map(take_until(","), String::from)(input)?;
+    let (input, _) = tag(",")(input)?;
+    let (input, count) = terminated(pitch_count, tag(","))(input)?;
+    let (input, pitches) = many0(pitch)(input)?;
+    let (input, _) = tag(",")(input)?;
+    let (input, event) = play_event(input)?;
 
-named!(info (&[u8]) -> Event, do_parse!(
-    terminated!(tag!("info"), tag!(",")) >>
-    key: map!(alphanumeric, Into::into) >>
-    tag!(",") >>
-    data: map!(map_res!(not_line_ending, str::from_utf8), String::from) >>
-    (Event::Info {
-        key: key,
-        data: data
-    })
-));
+    Ok((
+        input,
+        Event::Play {
+            inning,
+            team,
+            player,
+            count,
+            pitches,
+            event,
+        },
+    ))
+}
 
-named!(player_entry (&[u8]) -> Player, do_parse!(
-    id: map!(map_res!(take_until_and_consume!(","), str::from_utf8), String::from) >>
-    tag!("\"") >>
-    name: map!(map_res!(take_until_and_consume!("\""), str::from_utf8), String::from) >>
-    tag!(",") >>
-    team: terminated!(team, tag!(",")) >>
-    batting_pos: bytes_to_u8 >>
-    tag!(",") >>
-    fielding_pos: bytes_to_u8 >>
-    (Player {
-        id: id,
-        name: name,
-        team: team,
-        batting_pos: batting_pos,
-        fielding_pos: fielding_pos,
-    })
-));
+fn comment(input: &str) -> IResult<&str, Event> {
+    let (input, _) = terminated(tag("com"), tag(","))(input)?;
+    let (input, _) = tag("\"")(input)?;
+    let (input, comment) = map(take_until("\""), String::from)(input)?;
+    let (input, _) = tag("\"")(input)?;
 
-named!(hand (&[u8]) -> Hand, alt!(
-    value!(Hand::Left, tag!("L")) |
-    value!(Hand::Right, tag!("R"))
-));
+    Ok((input, Event::Comment { comment }))
+}
 
-named!(badj (&[u8]) -> Event, do_parse!(
-    terminated!(tag!("badj"), tag!(",")) >>
-    player: map!(map_res!(take_until_and_consume!(","), str::from_utf8), String::from) >>
-    hand: hand >>
-    (Event::BattingAdjustment {
-        player: player,
-        hand: hand,
-    })
-));
+fn hand(input: &str) -> IResult<&str, Hand> {
+    alt((value(Hand::Left, tag("L")), value(Hand::Right, tag("R"))))(input)
+}
 
-named!(padj (&[u8]) -> Event, do_parse!(
-    terminated!(tag!("padj"), tag!(",")) >>
-    player: map!(map_res!(take_until_and_consume!(","), str::from_utf8), String::from) >>
-    hand: hand >>
-    (Event::PitchingAdjustment {
-        player: player,
-        hand: hand,
-    })
-));
+fn badj(input: &str) -> IResult<&str, Event> {
+    let (input, _) = terminated(tag("badj"), tag(","))(input)?;
+    let (input, player) = map(take_until(","), String::from)(input)?;
+    let (input, _) = tag(",")(input)?;
+    let (input, hand) = hand(input)?;
+    Ok((input, Event::BattingAdjustment { player, hand }))
+}
 
-named!(ladj (&[u8]) -> Event, do_parse!(
-    terminated!(tag!("ladj"), tag!(",")) >>
-    team: team >>
-    tag!(",") >>
-    pos: bytes_to_u8 >>
-    (Event::LineupAdjustment {
-        team: team,
-        position: pos,
-    })
-));
+fn padj(input: &str) -> IResult<&str, Event> {
+    let (input, _) = terminated(tag("padj"), tag(","))(input)?;
+    let (input, player) = map(take_until(","), String::from)(input)?;
+    let (input, _) = tag(",")(input)?;
+    let (input, hand) = hand(input)?;
+    Ok((input, Event::PitchingAdjustment { player, hand }))
+}
 
-named!(comment (&[u8]) -> Event, do_parse!(
-    terminated!(tag!("com"), tag!(",")) >>
-    tag!("\"") >>
-    comment: map!(map_res!(take_until_and_consume!("\""), str::from_utf8), String::from) >>
-    (Event::Comment {
-        comment: comment,
-    })
-));
+fn ladj(input: &str) -> IResult<&str, Event> {
+    let (input, _) = terminated(tag("ladj"), tag(","))(input)?;
+    let (input, team) = team(input)?;
+    let (input, _) = tag(",")(input)?;
+    let (input, position) = to_u8(input)?;
+    Ok((input, Event::LineupAdjustment { team, position }))
+}
 
-named!(start (&[u8]) -> Event, do_parse!(
-    terminated!(tag!("start"), tag!(",")) >>
-    player: player_entry >>
-    (Event::Start { player: player })
-));
+fn info(input: &str) -> IResult<&str, Event> {
+    let (input, _) = terminated(tag("info"), tag(","))(input)?;
+    let (input, key) = map(alphanumeric1, Into::into)(input)?;
+    let (input, _) = tag(",")(input)?;
+    let (input, data) = map(not_line_ending, String::from)(input)?;
+    Ok((input, Event::Info { key, data }))
+}
 
-named!(sub (&[u8]) -> Event, do_parse!(
-    terminated!(tag!("sub"), tag!(",")) >>
-    player: player_entry >>
-    (Event::Sub { player: player })
-));
+pub fn event(input: &str) -> IResult<&str, Event> {
+    let (input, event) = alt((
+        game_id, version, play, info, start, sub, data, comment, badj, padj, ladj,
+    ))(input)?;
+    let (input, _) = if !input.is_empty() {
+        alt((tag("\n"), tag("\r\n")))(input)?
+    } else {
+        (input, "")
+    };
 
-named!(data (&[u8]) -> Event, do_parse!(
-    terminated!(tag!("data"), tag!(",")) >>
-    data_type: terminated!(map!(alpha, Into::into), tag!(",")) >>
-    player: map!(map_res!(take_until_and_consume!(","), str::from_utf8), String::from) >>
-    value: map!(map_res!(not_line_ending, str::from_utf8), String::from) >>
-    (Event::Data {
-        data_type: data_type,
-        player: player,
-        value: value,
-    })
-));
-
-named!(game_id (&[u8]) -> Event, do_parse!(
-    tag!("id") >>
-    tag!(",") >>
-    id: map!(map_res!(take!(12), str::from_utf8), String::from) >>
-    (Event::GameId { id: id })
-));
-named!(version (&[u8]) -> Event, do_parse!(
-    tag!("version") >>
-    tag!(",") >>
-    version: bytes_to_u8 >>
-    (Event::Version { version: version })
-));
-
-named!(pub event (&[u8]) -> Event, do_parse!(
-    event: alt_complete!(game_id | version | play | info | start | sub | data | comment |
-                         badj | padj | ladj) >>
-    alt!(eof!() | tag!("\n") | tag!("\r\n")) >>
-    (event)
-));
+    Ok((input, event))
+}
 
 #[cfg(test)]
 mod tests {
-    use nom::IResult::*;
-
     use event::{
         Advance, AdvanceParameter, Base, DataEventType, Event, FieldParameter, Hand, HitLocation,
         HitType, Pitch, PlayDescription, PlayEvent, PlayModifier, Team,
@@ -501,14 +625,14 @@ mod tests {
 
     macro_rules! assert_parsed {
         ($expected: expr, $result: expr) => {
-            assert_eq!(Done(&[][..], $expected), $result);
+            assert_eq!(Ok(("", $expected)), $result);
         };
     }
 
     #[test]
     fn test_version() {
-        assert_parsed!(Event::Version { version: 2 }, version(b"version,2"));
-        assert!(version(b"asdlfk,3,5").is_err());
+        assert_parsed!(Event::Version { version: 2 }, version("version,2"));
+        assert!(version("asdlfk,3,5").is_err());
     }
 
     #[test]
@@ -517,10 +641,10 @@ mod tests {
             Event::GameId {
                 id: "CHN201604110".into()
             },
-            game_id(b"id,CHN201604110")
+            game_id("id,CHN201604110")
         );
-        assert!(game_id(b"asdlfk,3,5").is_err());
-        assert!(game_id(b"id,3455").is_incomplete());
+        assert!(game_id("asdlfk,3,5").is_err());
+        assert!(game_id("id,3455").is_err());
     }
 
     #[test]
@@ -531,7 +655,7 @@ mod tests {
                 player: "showe001".into(),
                 value: "2".into(),
             },
-            data(b"data,er,showe001,2")
+            data("data,er,showe001,2")
         );
     }
 
@@ -555,174 +679,181 @@ mod tests {
             Event::Start {
                 player: player1.clone()
             },
-            start(b"start,fred103,\"fred\",1,7,6")
+            start("start,fred103,\"fred\",1,7,6")
         );
         assert_parsed!(
             Event::Start {
                 player: player2.clone()
             },
-            start(b"start,bob202,\"bob\",0,3,9")
+            start("start,bob202,\"bob\",0,3,9")
         );
-        assert!(start(b"start,bob202,\"bob\",2,3,9").is_err());
-        assert!(start(b"start,bob202").is_err());
+        assert!(start("start,bob202,\"bob\",2,3,9").is_err());
+        assert!(start("start,bob202").is_err());
 
         assert_parsed!(
             Event::Sub {
                 player: player1.clone()
             },
-            sub(b"sub,fred103,\"fred\",1,7,6")
+            sub("sub,fred103,\"fred\",1,7,6")
         );
         assert_parsed!(
             Event::Sub {
                 player: player2.clone()
             },
-            sub(b"sub,bob202,\"bob\",0,3,9")
+            sub("sub,bob202,\"bob\",0,3,9")
         );
-        assert!(sub(b"sub,bob202,\"bob\",2,3,9").is_err());
-        assert!(sub(b"sub,bob202").is_err());
+        assert!(sub("sub,bob202,\"bob\",2,3,9").is_err());
+        assert!(sub("sub,bob202").is_err());
     }
 
     #[test]
     fn test_hit_location() {
-        assert_parsed!(HitLocation::_2F, hit_location(b"2F"));
-        assert_parsed!(HitLocation::_2, hit_location(b"2"));
-        assert_parsed!(HitLocation::_25F, hit_location(b"25F"));
-        assert_parsed!(HitLocation::_25, hit_location(b"25"));
-        assert_parsed!(HitLocation::_1S, hit_location(b"1S"));
-        assert_parsed!(HitLocation::_23, hit_location(b"23"));
-        assert_parsed!(HitLocation::_23F, hit_location(b"23F"));
-        assert_parsed!(HitLocation::_15, hit_location(b"15"));
-        assert_parsed!(HitLocation::_1, hit_location(b"1"));
-        assert_parsed!(HitLocation::_13, hit_location(b"13"));
-        assert_parsed!(HitLocation::_5S, hit_location(b"5S"));
-        assert_parsed!(HitLocation::_56S, hit_location(b"56S"));
-        assert_parsed!(HitLocation::_6S, hit_location(b"6S"));
-        assert_parsed!(HitLocation::_6MS, hit_location(b"6MS"));
-        assert_parsed!(HitLocation::_4MS, hit_location(b"4MS"));
-        assert_parsed!(HitLocation::_4S, hit_location(b"4S"));
-        assert_parsed!(HitLocation::_34S, hit_location(b"34S"));
-        assert_parsed!(HitLocation::_3S, hit_location(b"3S"));
-        assert_parsed!(HitLocation::_5F, hit_location(b"5F"));
-        assert_parsed!(HitLocation::_5, hit_location(b"5"));
-        assert_parsed!(HitLocation::_56, hit_location(b"56"));
-        assert_parsed!(HitLocation::_6, hit_location(b"6"));
-        assert_parsed!(HitLocation::_6M, hit_location(b"6M"));
-        assert_parsed!(HitLocation::_4M, hit_location(b"4M"));
-        assert_parsed!(HitLocation::_4, hit_location(b"4"));
-        assert_parsed!(HitLocation::_34, hit_location(b"34"));
-        assert_parsed!(HitLocation::_3, hit_location(b"3"));
-        assert_parsed!(HitLocation::_3F, hit_location(b"3F"));
-        assert_parsed!(HitLocation::_5DF, hit_location(b"5DF"));
-        assert_parsed!(HitLocation::_5D, hit_location(b"5D"));
-        assert_parsed!(HitLocation::_56D, hit_location(b"56D"));
-        assert_parsed!(HitLocation::_6D, hit_location(b"6D"));
-        assert_parsed!(HitLocation::_6MD, hit_location(b"6MD"));
-        assert_parsed!(HitLocation::_4MD, hit_location(b"4MD"));
-        assert_parsed!(HitLocation::_4D, hit_location(b"4D"));
-        assert_parsed!(HitLocation::_34D, hit_location(b"34D"));
-        assert_parsed!(HitLocation::_3D, hit_location(b"3D"));
-        assert_parsed!(HitLocation::_3DF, hit_location(b"3DF"));
-        assert_parsed!(HitLocation::_7LSF, hit_location(b"7LSF"));
-        assert_parsed!(HitLocation::_7LS, hit_location(b"7LS"));
-        assert_parsed!(HitLocation::_7S, hit_location(b"7S"));
-        assert_parsed!(HitLocation::_78S, hit_location(b"78S"));
-        assert_parsed!(HitLocation::_8S, hit_location(b"8S"));
-        assert_parsed!(HitLocation::_89S, hit_location(b"89S"));
-        assert_parsed!(HitLocation::_9S, hit_location(b"9S"));
-        assert_parsed!(HitLocation::_9LS, hit_location(b"9LS"));
-        assert_parsed!(HitLocation::_9LSF, hit_location(b"9LSF"));
-        assert_parsed!(HitLocation::_7LF, hit_location(b"7LF"));
-        assert_parsed!(HitLocation::_7L, hit_location(b"7L"));
-        assert_parsed!(HitLocation::_7, hit_location(b"7"));
-        assert_parsed!(HitLocation::_78, hit_location(b"78"));
-        assert_parsed!(HitLocation::_8, hit_location(b"8"));
-        assert_parsed!(HitLocation::_89, hit_location(b"89"));
-        assert_parsed!(HitLocation::_9, hit_location(b"9"));
-        assert_parsed!(HitLocation::_9L, hit_location(b"9L"));
-        assert_parsed!(HitLocation::_9LF, hit_location(b"9LF"));
-        assert_parsed!(HitLocation::_7LDF, hit_location(b"7LDF"));
-        assert_parsed!(HitLocation::_7LD, hit_location(b"7LD"));
-        assert_parsed!(HitLocation::_7D, hit_location(b"7D"));
-        assert_parsed!(HitLocation::_78D, hit_location(b"78D"));
-        assert_parsed!(HitLocation::_8D, hit_location(b"8D"));
-        assert_parsed!(HitLocation::_89D, hit_location(b"89D"));
-        assert_parsed!(HitLocation::_9D, hit_location(b"9D"));
-        assert_parsed!(HitLocation::_9LD, hit_location(b"9LD"));
-        assert_parsed!(HitLocation::_9LDF, hit_location(b"9LDF"));
-        assert_parsed!(HitLocation::_78XD, hit_location(b"78XD"));
-        assert_parsed!(HitLocation::_8XD, hit_location(b"8XD"));
-        assert_parsed!(HitLocation::_89XD, hit_location(b"89XD"));
-        assert_parsed!(HitLocation::_5L, hit_location(b"5L"));
+        let test_cases = vec![
+            (HitLocation::_2F, "2F"),
+            (HitLocation::_2, "2"),
+            (HitLocation::_25F, "25F"),
+            (HitLocation::_25, "25"),
+            (HitLocation::_1S, "1S"),
+            (HitLocation::_23, "23"),
+            (HitLocation::_23F, "23F"),
+            (HitLocation::_15, "15"),
+            (HitLocation::_1, "1"),
+            (HitLocation::_13, "13"),
+            (HitLocation::_5S, "5S"),
+            (HitLocation::_56S, "56S"),
+            (HitLocation::_6S, "6S"),
+            (HitLocation::_6MS, "6MS"),
+            (HitLocation::_4MS, "4MS"),
+            (HitLocation::_4S, "4S"),
+            (HitLocation::_34S, "34S"),
+            (HitLocation::_3S, "3S"),
+            (HitLocation::_5F, "5F"),
+            (HitLocation::_5, "5"),
+            (HitLocation::_56, "56"),
+            (HitLocation::_6, "6"),
+            (HitLocation::_6M, "6M"),
+            (HitLocation::_4M, "4M"),
+            (HitLocation::_4, "4"),
+            (HitLocation::_34, "34"),
+            (HitLocation::_3, "3"),
+            (HitLocation::_3F, "3F"),
+            (HitLocation::_5DF, "5DF"),
+            (HitLocation::_5D, "5D"),
+            (HitLocation::_56D, "56D"),
+            (HitLocation::_6D, "6D"),
+            (HitLocation::_6MD, "6MD"),
+            (HitLocation::_4MD, "4MD"),
+            (HitLocation::_4D, "4D"),
+            (HitLocation::_34D, "34D"),
+            (HitLocation::_3D, "3D"),
+            (HitLocation::_3DF, "3DF"),
+            (HitLocation::_7LSF, "7LSF"),
+            (HitLocation::_7LS, "7LS"),
+            (HitLocation::_7S, "7S"),
+            (HitLocation::_78S, "78S"),
+            (HitLocation::_8S, "8S"),
+            (HitLocation::_89S, "89S"),
+            (HitLocation::_9S, "9S"),
+            (HitLocation::_9LS, "9LS"),
+            (HitLocation::_9LSF, "9LSF"),
+            (HitLocation::_7LF, "7LF"),
+            (HitLocation::_7L, "7L"),
+            (HitLocation::_7, "7"),
+            (HitLocation::_78, "78"),
+            (HitLocation::_8, "8"),
+            (HitLocation::_89, "89"),
+            (HitLocation::_9, "9"),
+            (HitLocation::_9L, "9L"),
+            (HitLocation::_9LF, "9LF"),
+            (HitLocation::_7LDF, "7LDF"),
+            (HitLocation::_7LD, "7LD"),
+            (HitLocation::_7D, "7D"),
+            (HitLocation::_78D, "78D"),
+            (HitLocation::_8D, "8D"),
+            (HitLocation::_89D, "89D"),
+            (HitLocation::_9D, "9D"),
+            (HitLocation::_9LD, "9LD"),
+            (HitLocation::_9LDF, "9LDF"),
+            (HitLocation::_78XD, "78XD"),
+            (HitLocation::_8XD, "8XD"),
+            (HitLocation::_89XD, "89XD"),
+            (HitLocation::_5L, "5L"),
+        ];
+        for (expected, input) in &test_cases {
+            assert_parsed!(*expected, hit_location(input));
+        }
     }
 
     #[test]
     fn test_modifier() {
-        assert_parsed!(
-            PlayModifier::HitWithLocation(HitType::PopUpBunt, None),
-            modifier(b"BP")
-        );
-        assert_parsed!(
-            PlayModifier::HitWithLocation(HitType::GroundBallBunt, Some(HitLocation::_9LF)),
-            modifier(b"BG9LF")
-        );
-        assert_parsed!(
-            PlayModifier::HitWithLocation(HitType::Fly, Some(HitLocation::_89S)),
-            modifier(b"F89S")
-        );
-        assert_parsed!(
-            PlayModifier::HitWithLocation(HitType::GroundBall, Some(HitLocation::_13)),
-            modifier(b"G13")
-        );
-        assert_parsed!(
-            PlayModifier::HitWithLocation(HitType::LineDrive, None),
-            modifier(b"L")
-        );
-        assert_parsed!(
-            PlayModifier::HitWithLocation(HitType::PopFly, Some(HitLocation::_4MS)),
-            modifier(b"P4MS")
-        );
+        let test_cases = vec![
+            (
+                PlayModifier::HitWithLocation(HitType::PopUpBunt, None),
+                "BP",
+            ),
+            (
+                PlayModifier::HitWithLocation(HitType::GroundBallBunt, Some(HitLocation::_9LF)),
+                "BG9LF",
+            ),
+            (
+                PlayModifier::HitWithLocation(HitType::Fly, Some(HitLocation::_89S)),
+                "F89S",
+            ),
+            (
+                PlayModifier::HitWithLocation(HitType::GroundBall, Some(HitLocation::_13)),
+                "G13",
+            ),
+            (PlayModifier::HitWithLocation(HitType::LineDrive, None), "L"),
+            (
+                PlayModifier::HitWithLocation(HitType::PopFly, Some(HitLocation::_4MS)),
+                "P4MS",
+            ),
+            (PlayModifier::AppealPlay, "AP"),
+            (PlayModifier::BuntFoul, "BF"),
+            (PlayModifier::BuntGroundedIntoDoublePlay, "BGDP"),
+            (PlayModifier::BatterInterference, "BINT"),
+            (PlayModifier::LineDriveBunt, "BL"),
+            (PlayModifier::BattingOutOfTurn, "BOOT"),
+            (PlayModifier::BuntPoppedIntoDoublePlay, "BPDP"),
+            (PlayModifier::RunnerHitByBattedBall, "BR"),
+            (PlayModifier::CourtesyBatter, "COUB"),
+            (PlayModifier::CourtesyFielder, "COUF"),
+            (PlayModifier::CourtesyRunner, "COUR"),
+            (PlayModifier::CalledThirdStrike, "C"),
+            (PlayModifier::UnspecifiedDoublePlay, "DP"),
+            (PlayModifier::Error(3), "E3"),
+            (PlayModifier::Error(7), "E7"),
+            (PlayModifier::FlyBallDoublePlay, "FDP"),
+            (PlayModifier::FanInterference, "FINT"),
+            (PlayModifier::Foul, "FL"),
+            (PlayModifier::ForceOut, "FO"),
+            (PlayModifier::GroundBallDoublePlay, "GDP"),
+            (PlayModifier::GroundBallTriplePlay, "GTP"),
+            (PlayModifier::InfieldFlyRule, "IF"),
+            (PlayModifier::Interference, "INT"),
+            (PlayModifier::InsideTheParkHR, "IPHR"),
+            (PlayModifier::LinedIntoDoublePlay, "LDP"),
+            (PlayModifier::LinedIntoTriplePlay, "LTP"),
+            (PlayModifier::ManagerChallenge, "MREV"),
+            (PlayModifier::NoDoublePlay, "NDP"),
+            (PlayModifier::Obstruction, "OBS"),
+            (PlayModifier::RunnerPassedAnotherRunner, "PASS"),
+            (PlayModifier::Relay(6), "R6"),
+            (PlayModifier::Relay(5), "R5"),
+            (PlayModifier::RunnerInterference, "RINT"),
+            (PlayModifier::SacrificeFly, "SF"),
+            (PlayModifier::SacrificeHit, "SH"),
+            (PlayModifier::Throw, "TH"),
+            (PlayModifier::ThrowToBase(2), "TH2"),
+            (PlayModifier::ThrowToBase(3), "TH3"),
+            (PlayModifier::UnspecifiedTriplePlay, "TP"),
+            (PlayModifier::UmpireInterference, "UINT"),
+            (PlayModifier::UmpireReview, "UREV"),
+        ];
 
-        assert_parsed!(PlayModifier::AppealPlay, modifier(b"AP"));
-        assert_parsed!(PlayModifier::BuntFoul, modifier(b"BF"));
-        assert_parsed!(PlayModifier::BuntGroundedIntoDoublePlay, modifier(b"BGDP"));
-        assert_parsed!(PlayModifier::BatterInterference, modifier(b"BINT"));
-        assert_parsed!(PlayModifier::LineDriveBunt, modifier(b"BL"));
-        assert_parsed!(PlayModifier::BattingOutOfTurn, modifier(b"BOOT"));
-        assert_parsed!(PlayModifier::BuntPoppedIntoDoublePlay, modifier(b"BPDP"));
-        assert_parsed!(PlayModifier::RunnerHitByBattedBall, modifier(b"BR"));
-        assert_parsed!(PlayModifier::CourtesyBatter, modifier(b"COUB"));
-        assert_parsed!(PlayModifier::CourtesyFielder, modifier(b"COUF"));
-        assert_parsed!(PlayModifier::CourtesyRunner, modifier(b"COUR"));
-        assert_parsed!(PlayModifier::CalledThirdStrike, modifier(b"C"));
-        assert_parsed!(PlayModifier::UnspecifiedDoublePlay, modifier(b"DP"));
-        assert_parsed!(PlayModifier::Error(3), modifier(b"E3"));
-        assert_parsed!(PlayModifier::Error(7), modifier(b"E7"));
-        assert_parsed!(PlayModifier::FlyBallDoublePlay, modifier(b"FDP"));
-        assert_parsed!(PlayModifier::FanInterference, modifier(b"FINT"));
-        assert_parsed!(PlayModifier::Foul, modifier(b"FL"));
-        assert_parsed!(PlayModifier::ForceOut, modifier(b"FO"));
-        assert_parsed!(PlayModifier::GroundBallDoublePlay, modifier(b"GDP"));
-        assert_parsed!(PlayModifier::GroundBallTriplePlay, modifier(b"GTP"));
-        assert_parsed!(PlayModifier::InfieldFlyRule, modifier(b"IF"));
-        assert_parsed!(PlayModifier::Interference, modifier(b"INT"));
-        assert_parsed!(PlayModifier::InsideTheParkHR, modifier(b"IPHR"));
-        assert_parsed!(PlayModifier::LinedIntoDoublePlay, modifier(b"LDP"));
-        assert_parsed!(PlayModifier::LinedIntoTriplePlay, modifier(b"LTP"));
-        assert_parsed!(PlayModifier::ManagerChallenge, modifier(b"MREV"));
-        assert_parsed!(PlayModifier::NoDoublePlay, modifier(b"NDP"));
-        assert_parsed!(PlayModifier::Obstruction, modifier(b"OBS"));
-        assert_parsed!(PlayModifier::RunnerPassedAnotherRunner, modifier(b"PASS"));
-        assert_parsed!(PlayModifier::Relay(6), modifier(b"R6"));
-        assert_parsed!(PlayModifier::Relay(5), modifier(b"R5"));
-        assert_parsed!(PlayModifier::RunnerInterference, modifier(b"RINT"));
-        assert_parsed!(PlayModifier::SacrificeFly, modifier(b"SF"));
-        assert_parsed!(PlayModifier::SacrificeHit, modifier(b"SH"));
-        assert_parsed!(PlayModifier::Throw, modifier(b"TH"));
-        assert_parsed!(PlayModifier::ThrowToBase(2), modifier(b"TH2"));
-        assert_parsed!(PlayModifier::ThrowToBase(3), modifier(b"TH3"));
-        assert_parsed!(PlayModifier::UnspecifiedTriplePlay, modifier(b"TP"));
-        assert_parsed!(PlayModifier::UmpireInterference, modifier(b"UINT"));
-        assert_parsed!(PlayModifier::UmpireReview, modifier(b"UREV"));
+        for (expected, input) in &test_cases {
+            assert_parsed!(*expected, modifier(input));
+        }
     }
 
     #[test]
@@ -734,7 +865,7 @@ mod tests {
                 success: true,
                 parameters: vec![]
             },
-            advance(b"2-3")
+            advance("2-3")
         );
         assert_parsed!(
             Advance {
@@ -746,7 +877,7 @@ mod tests {
                     FieldParameter::Play(6),
                 ])],
             },
-            advance(b"1X2(26)")
+            advance("1X2(26)")
         );
         assert_parsed!(
             Advance {
@@ -760,7 +891,7 @@ mod tests {
                     FieldParameter::Play(4),
                 ])],
             },
-            advance(b"BX2(8434)")
+            advance("BX2(8434)")
         );
         assert_parsed!(
             Advance {
@@ -774,7 +905,7 @@ mod tests {
                     FieldParameter::Play(4),
                 ])],
             },
-            advance(b"BX2(8434/TH)")
+            advance("BX2(8434/TH)")
         );
         assert_parsed!(
             Advance {
@@ -786,7 +917,7 @@ mod tests {
                     FieldParameter::Error(4),
                 ])],
             },
-            advance(b"BX2(7E4)")
+            advance("BX2(7E4)")
         );
         assert_parsed!(
             Advance {
@@ -795,7 +926,7 @@ mod tests {
                 success: true,
                 parameters: vec![AdvanceParameter::ThrowingError(5, None)],
             },
-            advance(b"1-3(E5/TH)")
+            advance("1-3(E5/TH)")
         );
         assert_parsed!(
             Advance {
@@ -808,7 +939,7 @@ mod tests {
                     AdvanceParameter::NoRBI
                 ],
             },
-            advance(b"2-H(E4/TH)(UR)(NR)")
+            advance("2-H(E4/TH)(UR)(NR)")
         );
         assert_parsed!(
             Advance {
@@ -821,7 +952,7 @@ mod tests {
                     AdvanceParameter::NoRBI
                 ],
             },
-            advance(b"2-H(E4/TH)(UR)(NORBI)")
+            advance("2-H(E4/TH)(UR)(NORBI)")
         );
         assert_parsed!(
             Advance {
@@ -830,7 +961,7 @@ mod tests {
                 success: true,
                 parameters: vec![AdvanceParameter::RBI],
             },
-            advance(b"3-H(RBI)")
+            advance("3-H(RBI)")
         );
         assert_parsed!(
             Advance {
@@ -839,7 +970,7 @@ mod tests {
                 success: false,
                 parameters: vec![AdvanceParameter::Interference(5)],
             },
-            advance(b"2X3(5/INT)")
+            advance("2X3(5/INT)")
         );
         assert_parsed!(
             Advance {
@@ -848,7 +979,7 @@ mod tests {
                 success: true,
                 parameters: vec![AdvanceParameter::TeamUnearnedRun],
             },
-            advance(b"2-H(TUR)")
+            advance("2-H(TUR)")
         );
         assert_parsed!(
             Advance {
@@ -861,7 +992,7 @@ mod tests {
                     FieldParameter::Play(3),
                 ])],
             },
-            advance(b"BX2(8U3)")
+            advance("BX2(8U3)")
         );
         assert_parsed!(
             Advance {
@@ -870,7 +1001,7 @@ mod tests {
                 success: true,
                 parameters: vec![AdvanceParameter::WithThrow],
             },
-            advance(b"B-2(TH)")
+            advance("B-2(TH)")
         );
     }
 
@@ -907,115 +1038,106 @@ mod tests {
         };
         assert_parsed!(
             PlayDescription::GIDP(vec![6, 4, 3], Base::Second),
-            play_description(b"64(2)3")
+            play_description("64(2)3")
         );
         assert_parsed!(
             PlayDescription::FielderSequence(vec![(5, false)], None),
-            play_description(b"5")
+            play_description("5")
         );
-        assert_parsed!(desc1, play_description(b"23"));
-        assert_parsed!(PlayDescription::Balk, play_description(b"BK"));
-        assert_parsed!(PlayDescription::PassedBall, play_description(b"PB"));
-        assert_parsed!(PlayDescription::GroundRuleDouble, play_description(b"DGR"));
-        assert_parsed!(PlayDescription::WildPitch, play_description(b"WP"));
+        assert_parsed!(desc1, play_description("23"));
+        assert_parsed!(PlayDescription::Balk, play_description("BK"));
+        assert_parsed!(PlayDescription::PassedBall, play_description("PB"));
+        assert_parsed!(PlayDescription::GroundRuleDouble, play_description("DGR"));
+        assert_parsed!(PlayDescription::WildPitch, play_description("WP"));
         assert_parsed!(
             PlayDescription::Strikeout(None, vec![]),
-            play_description(b"K")
+            play_description("K")
         );
-        assert_parsed!(PlayDescription::IntentionalWalk, play_description(b"I"));
-        assert_parsed!(PlayDescription::IntentionalWalk, play_description(b"IW"));
-        assert_parsed!(desc2, play_description(b"K23"));
-        assert_parsed!(desc3, play_description(b"K+PB"));
-        assert_parsed!(desc4, play_description(b"K+WP"));
-        assert_parsed!(PlayDescription::Error(3), play_description(b"E3"));
+        assert_parsed!(PlayDescription::IntentionalWalk, play_description("I"));
+        assert_parsed!(PlayDescription::IntentionalWalk, play_description("IW"));
+        assert_parsed!(desc2, play_description("K23"));
+        assert_parsed!(desc3, play_description("K+PB"));
+        assert_parsed!(desc4, play_description("K+WP"));
+        assert_parsed!(PlayDescription::Error(3), play_description("E3"));
         assert_parsed!(
             PlayDescription::FoulFlyBallError(3),
-            play_description(b"FLE3")
+            play_description("FLE3")
         );
-        assert_parsed!(PlayDescription::Single(vec![]), play_description(b"S"));
-        assert_parsed!(PlayDescription::Double(vec![]), play_description(b"D"));
-        assert_parsed!(PlayDescription::Triple(vec![]), play_description(b"T"));
-        assert_parsed!(PlayDescription::Single(vec![3]), play_description(b"S3"));
-        assert_parsed!(PlayDescription::Double(vec![7]), play_description(b"D7"));
-        assert_parsed!(PlayDescription::Triple(vec![6]), play_description(b"T6"));
-        assert_parsed!(
-            PlayDescription::Single(vec![3, 4]),
-            play_description(b"S34")
-        );
-        assert_parsed!(
-            PlayDescription::Double(vec![9, 7]),
-            play_description(b"D97")
-        );
-        assert_parsed!(
-            PlayDescription::Triple(vec![5, 6]),
-            play_description(b"T56")
-        );
-        assert_parsed!(PlayDescription::HomeRun, play_description(b"H"));
-        assert_parsed!(PlayDescription::HomeRun, play_description(b"HR"));
+        assert_parsed!(PlayDescription::Single(vec![]), play_description("S"));
+        assert_parsed!(PlayDescription::Double(vec![]), play_description("D"));
+        assert_parsed!(PlayDescription::Triple(vec![]), play_description("T"));
+        assert_parsed!(PlayDescription::Single(vec![3]), play_description("S3"));
+        assert_parsed!(PlayDescription::Double(vec![7]), play_description("D7"));
+        assert_parsed!(PlayDescription::Triple(vec![6]), play_description("T6"));
+        assert_parsed!(PlayDescription::Single(vec![3, 4]), play_description("S34"));
+        assert_parsed!(PlayDescription::Double(vec![9, 7]), play_description("D97"));
+        assert_parsed!(PlayDescription::Triple(vec![5, 6]), play_description("T56"));
+        assert_parsed!(PlayDescription::HomeRun, play_description("H"));
+        assert_parsed!(PlayDescription::HomeRun, play_description("HR"));
         assert_parsed!(
             PlayDescription::InsideTheParkHomeRun(vec![3, 4]),
-            play_description(b"H34")
+            play_description("H34")
         );
         assert_parsed!(
             PlayDescription::InsideTheParkHomeRun(vec![3, 4]),
-            play_description(b"HR34")
+            play_description("HR34")
         );
-        assert_parsed!(PlayDescription::Walk(None), play_description(b"W"));
-        assert_parsed!(desc5, play_description(b"W+WP"));
-        assert_parsed!(PlayDescription::HitByPitch, play_description(b"HP"));
-        assert_parsed!(PlayDescription::NoPlay, play_description(b"NP"));
+        assert_parsed!(PlayDescription::Walk(None), play_description("W"));
+        assert_parsed!(desc5, play_description("W+WP"));
+        assert_parsed!(PlayDescription::HitByPitch, play_description("HP"));
+        assert_parsed!(PlayDescription::NoPlay, play_description("NP"));
         assert_parsed!(
             PlayDescription::StolenBase(vec![(Base::Third, false)]),
-            play_description(b"SB3")
+            play_description("SB3")
         );
         assert_parsed!(
             PlayDescription::StolenBase(vec![(Base::Third, false), (Base::Second, false)]),
-            play_description(b"SB3;SB2")
+            play_description("SB3;SB2")
         );
         assert_parsed!(
             PlayDescription::StolenBase(vec![(Base::Home, true), (Base::Second, false)]),
-            play_description(b"SBH(UR);SB2")
+            play_description("SBH(UR);SB2")
         );
         assert_parsed!(
             PlayDescription::CatcherInterference(1),
-            play_description(b"C/E1")
+            play_description("C/E1")
         );
         assert_parsed!(
             PlayDescription::CatcherInterference(2),
-            play_description(b"C/E2")
+            play_description("C/E2")
         );
         assert_parsed!(
             PlayDescription::CatcherInterference(3),
-            play_description(b"C/E3")
+            play_description("C/E3")
         );
         assert_parsed!(
             PlayDescription::DefensiveIndifference,
-            play_description(b"DI")
+            play_description("DI")
         );
-        assert_parsed!(PlayDescription::OtherAdvance, play_description(b"OA"));
+        assert_parsed!(PlayDescription::OtherAdvance, play_description("OA"));
         assert_parsed!(
             PlayDescription::PickOff(
                 Base::Second,
                 vec![FieldParameter::Play(1), FieldParameter::Play(4),]
             ),
-            play_description(b"PO2(14)")
+            play_description("PO2(14)")
         );
         assert_parsed!(
             PlayDescription::PickOff(Base::First, vec![FieldParameter::Error(3),]),
-            play_description(b"PO1(E3)")
+            play_description("PO1(E3)")
         );
         assert_parsed!(
             PlayDescription::PickOffCaughtStealing(Base::Second, vec![1, 3, 6, 1]),
-            play_description(b"POCS2(1361)")
+            play_description("POCS2(1361)")
         );
         assert_parsed!(
             PlayDescription::CaughtStealing(Base::Second, vec![1, 3, 6, 1]),
-            play_description(b"CS2(1361)")
+            play_description("CS2(1361)")
         );
-        assert_parsed!(desc6, play_description(b"8(B)84(2)"));
-        assert_parsed!(desc7, play_description(b"3(B)3(1)"));
-        assert_parsed!(desc8, play_description(b"1(B)16(2)63(1)"));
-        assert_parsed!(desc9, play_description(b"5(2)4(1)3"));
+        assert_parsed!(desc6, play_description("8(B)84(2)"));
+        assert_parsed!(desc7, play_description("3(B)3(1)"));
+        assert_parsed!(desc8, play_description("1(B)16(2)63(1)"));
+        assert_parsed!(desc9, play_description("5(2)4(1)3"));
     }
 
     #[test]
@@ -1172,7 +1294,10 @@ mod tests {
         };
 
         let event8 = PlayEvent {
-            description: PlayDescription::StolenBase(vec![(Base::Home, true), (Base::Second, false)]),
+            description: PlayDescription::StolenBase(vec![
+                (Base::Home, true),
+                (Base::Second, false),
+            ]),
             modifiers: vec![],
             advances: vec![],
         };
@@ -1181,28 +1306,28 @@ mod tests {
             description: PlayDescription::FielderSequence(vec![(5, false), (3, false)], None),
             modifiers: vec![
                 PlayModifier::HitWithLocation(HitType::GroundBall, Some(HitLocation::_5L)),
-                PlayModifier::UmpireReview
+                PlayModifier::UmpireReview,
             ],
             advances: vec![],
         };
 
-        assert_parsed!(event1, play_event(b"23/G-.1-2"));
-        assert_parsed!(event2, play_event(b"FC2/G.2X3(265);B-2(TH)"));
-        assert_parsed!(event3, play_event(b"S8.2-H;BX2(8U3)"));
-        assert_parsed!(event4, play_event(b"S/L9S.3-H;2X3(5/INT);1-2"));
-        assert_parsed!(event5, play_event(b"54(1)/FO/G5.3-H;B-1"));
-        assert_parsed!(event6, play_event(b"7/F/SF.3-H;2-3;1-2(THH)"));
-        assert_parsed!(event7, play_event(b"4E3/G.2-3;1-2"));
-        assert_parsed!(event8, play_event(b"SBH(UR);SB2"));
-        assert_parsed!(event9, play_event(b"53/G5L/UREV"));
+        assert_parsed!(event1, play_event("23/G-.1-2"));
+        assert_parsed!(event2, play_event("FC2/G.2X3(265);B-2(TH)"));
+        assert_parsed!(event3, play_event("S8.2-H;BX2(8U3)"));
+        assert_parsed!(event4, play_event("S/L9S.3-H;2X3(5/INT);1-2"));
+        assert_parsed!(event5, play_event("54(1)/FO/G5.3-H;B-1"));
+        assert_parsed!(event6, play_event("7/F/SF.3-H;2-3;1-2(THH)"));
+        assert_parsed!(event7, play_event("4E3/G.2-3;1-2"));
+        assert_parsed!(event8, play_event("SBH(UR);SB2"));
+        assert_parsed!(event9, play_event("53/G5L/UREV"));
     }
 
     #[test]
     fn test_play() {
-        let play1 = b"play,8,0,philb001,12,FBS1FX,23/G-.1-2";
-        let play2 = b"play,7,0,finnb001,01,LX,FC2/G.2X3(265);B-2(TH)";
-        let play3 = b"play,6,1,heywj001,??,CBFBBS,K";
-        let play4 = b"play,3,0,hamib001,12,FCBX,HR/7/F";
+        let play1 = "play,8,0,philb001,12,FBS1FX,23/G-.1-2";
+        let play2 = "play,7,0,finnb001,01,LX,FC2/G.2X3(265);B-2(TH)";
+        let play3 = "play,6,1,heywj001,??,CBFBBS,K";
+        let play4 = "play,3,0,hamib001,12,FCBX,HR/7/F";
 
         let parsed1 = Event::Play {
             inning: 8,
@@ -1309,9 +1434,9 @@ mod tests {
             Event::Comment {
                 comment: "foo".into()
             },
-            comment(b"com,\"foo\"")
+            comment("com,\"foo\"")
         );
-        assert!(comment(b"com,foo").is_err());
+        assert!(comment("com,foo").is_err());
     }
 
     #[test]
@@ -1321,14 +1446,14 @@ mod tests {
                 player: "bonib001".into(),
                 hand: Hand::Right,
             },
-            badj(b"badj,bonib001,R")
+            badj("badj,bonib001,R")
         );
         assert_parsed!(
             Event::BattingAdjustment {
                 player: "dempr101".into(),
                 hand: Hand::Left,
             },
-            badj(b"badj,dempr101,L")
+            badj("badj,dempr101,L")
         );
 
         assert_parsed!(
@@ -1336,7 +1461,7 @@ mod tests {
                 player: "harrg001".into(),
                 hand: Hand::Left,
             },
-            padj(b"padj,harrg001,L")
+            padj("padj,harrg001,L")
         );
 
         assert_parsed!(
@@ -1344,7 +1469,7 @@ mod tests {
                 team: Team::Home,
                 position: 7,
             },
-            ladj(b"ladj,1,7")
+            ladj("ladj,1,7")
         );
     }
 }

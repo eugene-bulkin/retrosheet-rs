@@ -10,7 +10,6 @@
 
 #![deny(missing_docs)]
 
-#[macro_use]
 extern crate nom;
 
 pub use self::game::{Game, GameError};
