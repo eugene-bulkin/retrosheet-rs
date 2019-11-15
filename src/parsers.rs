@@ -652,6 +652,7 @@ mod tests {
         assert_parsed!(HitLocation::_78XD, hit_location(b"78XD"));
         assert_parsed!(HitLocation::_8XD, hit_location(b"8XD"));
         assert_parsed!(HitLocation::_89XD, hit_location(b"89XD"));
+        assert_parsed!(HitLocation::_5L, hit_location(b"5L"));
     }
 
     #[test]
@@ -1176,6 +1177,15 @@ mod tests {
             advances: vec![],
         };
 
+        let event9 = PlayEvent {
+            description: PlayDescription::FielderSequence(vec![(5, false), (3, false)], None),
+            modifiers: vec![
+                PlayModifier::HitWithLocation(HitType::GroundBall, Some(HitLocation::_5L)),
+                PlayModifier::UmpireReview
+            ],
+            advances: vec![],
+        };
+
         assert_parsed!(event1, play_event(b"23/G-.1-2"));
         assert_parsed!(event2, play_event(b"FC2/G.2X3(265);B-2(TH)"));
         assert_parsed!(event3, play_event(b"S8.2-H;BX2(8U3)"));
@@ -1184,6 +1194,7 @@ mod tests {
         assert_parsed!(event6, play_event(b"7/F/SF.3-H;2-3;1-2(THH)"));
         assert_parsed!(event7, play_event(b"4E3/G.2-3;1-2"));
         assert_parsed!(event8, play_event(b"SBH(UR);SB2"));
+        assert_parsed!(event9, play_event(b"53/G5L/UREV"));
     }
 
     #[test]

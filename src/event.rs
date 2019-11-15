@@ -531,6 +531,9 @@ pub enum HitLocation {
     _8XD,
     /// 89XD
     _89XD,
+    /// 5L; this event does not appear in the chart, but does seem to appear in some cases. Perhaps
+    /// due to a shift?
+    _5L,
 }
 
 impl<'a> From<&'a [u8]> for HitLocation {
@@ -604,7 +607,8 @@ impl<'a> From<&'a [u8]> for HitLocation {
             b"78XD" => HitLocation::_78XD,
             b"8XD" => HitLocation::_8XD,
             b"89XD" => HitLocation::_89XD,
-            _ => unreachable!(),
+            b"5L" => HitLocation::_5L,
+            _ => unreachable!(std::str::from_utf8(&bytes).unwrap()),
         }
     }
 }
