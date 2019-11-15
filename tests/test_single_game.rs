@@ -1,7 +1,7 @@
 extern crate retrosheet;
 
 use std::fs::File;
-use std::io::{BufRead, Read};
+use std::io::Read;
 
 use retrosheet::{Parser, ParserError};
 
