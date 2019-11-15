@@ -1,5 +1,3 @@
-use nom::IResult;
-
 use crate::event::Event;
 use crate::game::{Game, GameError, GameState};
 use crate::parsers::event;
@@ -8,7 +6,7 @@ pub use self::Error as ParserError;
 
 #[derive(Clone, Debug, PartialEq)]
 /// An error that occurs while parsing an event file.
-pub enum Error {
+pub enum Error<'a> {
     /// The parser received an unexpected `game_id` event.
     UnexpectedGameId {
         /// The id of the game already registered.
@@ -17,12 +15,12 @@ pub enum Error {
     /// The parser received an game event without a game having been started.
     NoGame(Event),
     /// There were bytes remaining after attempting to parse the event file.
-    BytesRemaining(Vec<u8>),
+    BytesRemaining(&'a str),
     /// An error occurred while processing events for a game.
     GameProcessingError(GameError),
 }
 
-impl ::std::fmt::Display for Error {
+impl<'a> ::std::fmt::Display for Error<'a> {
     fn fmt(&self, f: &mut ::std::fmt::Formatter) -> ::std::fmt::Result {
         match *self {
             Error::UnexpectedGameId {
@@ -87,9 +85,9 @@ impl Parser {
     /// # Errors
     /// The parser expects the byte-data coming in to be a *complete* event file, so any bytes
     /// remaining are counted as an error. Any other errors are from invalid events.
-    pub fn parse(&mut self, mut bytes: &[u8]) -> Result<Vec<Game>, Error> {
+    pub fn parse<'s, 'i>(&'s mut self, mut bytes: &'i str) -> Result<Vec<Game>, Error<'i>> {
         let mut result = Vec::new();
-        while let IResult::Done(rest, evt) = event(bytes) {
+        while let Ok((rest, evt)) = event(bytes) {
             let mut new_game: Option<Game> = None;
             match self.state {
                 State::Empty => {
@@ -144,7 +142,7 @@ impl Parser {
             bytes = rest;
         }
         if !bytes.is_empty() {
-            Err(Error::BytesRemaining(bytes.to_vec()))
+            Err(Error::BytesRemaining(bytes))
         } else {
             if self.state != State::Empty {
                 // We reached the end of input after a game, so make sure the game can be validly
@@ -165,13 +163,13 @@ mod tests {
     use std::iter::FromIterator;
 
     use event::{
-        Advance, Base, DataEventType, Event, Info, Pitch, PlayDescription, PlayEvent, Player, Team,
+        Advance, Base, DataEventType, Event, Info, Pitch, PlayDescription, Player, PlayEvent, Team,
     };
     use game::{Game, GameError, GameState, Substitution};
 
     use super::*;
 
-    const SHORT_GAME: &'static [u8] = b"id,CHN201506130
+    const SHORT_GAME: &'static str = "id,CHN201506130
 version,2
 info,number,0
 start,foo,\"Bar\",0,1,6
@@ -262,9 +260,9 @@ data,er,foo,2";
         let game_expected = short_game();
 
         let buf = {
-            let mut buf: Vec<u8> = SHORT_GAME.to_vec();
-            buf.extend_from_slice(b"\n");
-            buf.extend_from_slice(SHORT_GAME);
+            let mut buf: String = SHORT_GAME.to_string();
+            buf += "\n";
+            buf += SHORT_GAME;
             buf
         };
 
@@ -282,7 +280,7 @@ data,er,foo,2";
     fn test_unexpected_id() {
         let mut parser = Parser::new();
         let result = parser.parse(
-            b"id,CHN201506130
+            "id,CHN201506130
 version,2
 id,CHN201604110",
         );
@@ -297,25 +295,25 @@ id,CHN201604110",
     #[test]
     fn test_unexpected_version() {
         let mut parser = Parser::new();
-        let result = parser.parse(b"version,3");
-        assert_eq!(Err(Error::NoGame(Event::Version { version: 3 })), result);
+        let result = parser.parse("version,3");
+        assert_eq!(result, Err(Error::NoGame(Event::Version { version: 3 })));
     }
 
     #[test]
     fn test_bytes_remaining() {
         let mut parser = Parser::new();
         let result = parser.parse(
-            b"id,CHN201506130
+            "id,CHN201506130
 version,2
 foo\n\n",
         );
-        assert_eq!(Err(Error::BytesRemaining(b"foo\n\n".to_vec())), result);
+        assert_eq!(Err(Error::BytesRemaining("foo\n\n")), result);
     }
 
     #[test]
     fn test_reset() {
         let mut parser = Parser::new();
-        let _ = parser.parse(b"id,CHN201506130");
+        let _ = parser.parse("id,CHN201506130");
         parser.reset();
         let result = parser.parse(SHORT_GAME);
         assert!(
@@ -332,7 +330,7 @@ foo\n\n",
             player: "fred103".into(),
             value: "2".into(),
         };
-        let bytes = vec![1, 2, 3];
+        let bytes = "abc";
 
         assert_eq!(
             "game_id event was received before finishing game 'foo'".to_string(),
@@ -353,7 +351,7 @@ foo\n\n",
 
         assert_eq!(
             format!("bytes remaining after parsing completed: {:?}", bytes),
-            format!("{}", Error::BytesRemaining(bytes.clone()))
+            format!("{}", Error::BytesRemaining(bytes))
         );
 
         assert_eq!(

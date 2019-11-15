@@ -1,9 +1,9 @@
 extern crate retrosheet;
 
 use std::fs::File;
-use std::io::Read;
+use std::io::{BufRead, Read};
 
-use retrosheet::Parser;
+use retrosheet::{Parser, ParserError};
 
 fn test_single_game(file: &str) {
     let mut parser = Parser::new();
@@ -11,10 +11,22 @@ fn test_single_game(file: &str) {
     let file_name = format!("{}/test_resources/{}", env!("CARGO_MANIFEST_DIR"), file);
     let mut file = File::open(file_name).unwrap();
 
-    let mut buf = vec![];
-    file.read_exact(&mut buf).expect("could not read");
+    let mut buf: String = String::new();
+    file.read_to_string(&mut buf).expect("could not read");
 
-    assert!(parser.parse(&buf).is_ok());
+    if let Err(e) = parser.parse(&buf) {
+        match e {
+            ParserError::BytesRemaining(s) => {
+                let first_bytes: Vec<u8> = s
+                    .bytes()
+                    .take_while(|&byte| byte != b'\r' && byte != b'\n')
+                    .collect();
+                let first_line = std::str::from_utf8(&first_bytes).expect("valid utf8");
+                assert!(false, "Failed on line: {}", first_line);
+            }
+            e => assert!(false, "{}", e),
+        }
+    }
 }
 
 #[test]

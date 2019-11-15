@@ -104,37 +104,37 @@ pub enum Info {
     Unknown,
 }
 
-impl<'a> From<&'a [u8]> for Info {
-    fn from(bytes: &'a [u8]) -> Info {
+impl From<&str> for Info {
+    fn from(bytes: &str) -> Info {
         match bytes {
-            b"visteam" => Info::VisitingTeam,
-            b"hometeam" => Info::HomeTeam,
-            b"date" => Info::Date,
-            b"number" => Info::Number,
-            b"pitches" => Info::Pitches,
-            b"umphome" => Info::UmpireHome,
-            b"ump1b" => Info::Umpire1B,
-            b"ump2b" => Info::Umpire2B,
-            b"ump3b" => Info::Umpire3B,
-            b"fieldcond" => Info::FieldCondition,
-            b"precip" => Info::Precipitation,
-            b"sky" => Info::Sky,
-            b"temp" => Info::Temperature,
-            b"winddir" => Info::WindDirection,
-            b"windspeed" => Info::WindSpeed,
-            b"timeofgame" => Info::GameLength,
-            b"attendence" => Info::Attendance,
-            b"wp" => Info::WinningPitcher,
-            b"lp" => Info::LosingPitcher,
-            b"save" => Info::SavePitcher,
-            b"gwrbi" => Info::GameWinningRBI,
-            b"edittime" => Info::EditTime,
-            b"howscored" => Info::ScoreMethod,
-            b"inputprogvers" => Info::InputProgramVersion,
-            b"inputter" => Info::Inputter,
-            b"inputtime" => Info::InputTime,
-            b"scorer" => Info::Scorer,
-            b"translator" => Info::Translator,
+            "visteam" => Info::VisitingTeam,
+            "hometeam" => Info::HomeTeam,
+            "date" => Info::Date,
+            "number" => Info::Number,
+            "pitches" => Info::Pitches,
+            "umphome" => Info::UmpireHome,
+            "ump1b" => Info::Umpire1B,
+            "ump2b" => Info::Umpire2B,
+            "ump3b" => Info::Umpire3B,
+            "fieldcond" => Info::FieldCondition,
+            "precip" => Info::Precipitation,
+            "sky" => Info::Sky,
+            "temp" => Info::Temperature,
+            "winddir" => Info::WindDirection,
+            "windspeed" => Info::WindSpeed,
+            "timeofgame" => Info::GameLength,
+            "attendence" => Info::Attendance,
+            "wp" => Info::WinningPitcher,
+            "lp" => Info::LosingPitcher,
+            "save" => Info::SavePitcher,
+            "gwrbi" => Info::GameWinningRBI,
+            "edittime" => Info::EditTime,
+            "howscored" => Info::ScoreMethod,
+            "inputprogvers" => Info::InputProgramVersion,
+            "inputter" => Info::Inputter,
+            "inputtime" => Info::InputTime,
+            "scorer" => Info::Scorer,
+            "translator" => Info::Translator,
             _ => Info::Unknown,
         }
     }
@@ -536,84 +536,84 @@ pub enum HitLocation {
     _5L,
 }
 
-impl<'a> From<&'a [u8]> for HitLocation {
-    fn from(bytes: &'a [u8]) -> HitLocation {
+impl From<&str> for HitLocation {
+    fn from(bytes: &str) -> HitLocation {
         match bytes {
-            b"2F" => HitLocation::_2F,
-            b"2" => HitLocation::_2,
-            b"25F" => HitLocation::_25F,
-            b"25" => HitLocation::_25,
-            b"1S" => HitLocation::_1S,
-            b"23" => HitLocation::_23,
-            b"23F" => HitLocation::_23F,
-            b"15" => HitLocation::_15,
-            b"1" => HitLocation::_1,
-            b"13" => HitLocation::_13,
-            b"5S" => HitLocation::_5S,
-            b"56S" => HitLocation::_56S,
-            b"6S" => HitLocation::_6S,
-            b"6MS" => HitLocation::_6MS,
-            b"4MS" => HitLocation::_4MS,
-            b"4S" => HitLocation::_4S,
-            b"34S" => HitLocation::_34S,
-            b"3S" => HitLocation::_3S,
-            b"5F" => HitLocation::_5F,
-            b"5" => HitLocation::_5,
-            b"56" => HitLocation::_56,
-            b"6" => HitLocation::_6,
-            b"6M" => HitLocation::_6M,
-            b"4M" => HitLocation::_4M,
-            b"4" => HitLocation::_4,
-            b"34" => HitLocation::_34,
-            b"3" => HitLocation::_3,
-            b"3F" => HitLocation::_3F,
-            b"5DF" => HitLocation::_5DF,
-            b"5D" => HitLocation::_5D,
-            b"56D" => HitLocation::_56D,
-            b"6D" => HitLocation::_6D,
-            b"6MD" => HitLocation::_6MD,
-            b"4MD" => HitLocation::_4MD,
-            b"4D" => HitLocation::_4D,
-            b"34D" => HitLocation::_34D,
-            b"3D" => HitLocation::_3D,
-            b"3DF" => HitLocation::_3DF,
-            b"7LSF" => HitLocation::_7LSF,
-            b"7LS" => HitLocation::_7LS,
-            b"7S" => HitLocation::_7S,
-            b"78S" => HitLocation::_78S,
-            b"8S" => HitLocation::_8S,
-            b"89S" => HitLocation::_89S,
-            b"9S" => HitLocation::_9S,
-            b"9LS" => HitLocation::_9LS,
-            b"9LSF" => HitLocation::_9LSF,
-            b"7LF" => HitLocation::_7LF,
-            b"7L" => HitLocation::_7L,
-            b"7" => HitLocation::_7,
-            b"78" => HitLocation::_78,
-            b"8" => HitLocation::_8,
-            b"89" => HitLocation::_89,
-            b"9" => HitLocation::_9,
-            b"9L" => HitLocation::_9L,
-            b"9LF" => HitLocation::_9LF,
-            b"7LDF" => HitLocation::_7LDF,
-            b"7LD" => HitLocation::_7LD,
-            b"7D" => HitLocation::_7D,
-            b"78D" => HitLocation::_78D,
-            b"8D" => HitLocation::_8D,
-            b"89D" => HitLocation::_89D,
-            b"9D" => HitLocation::_9D,
-            b"9LD" => HitLocation::_9LD,
-            b"9LDF" => HitLocation::_9LDF,
-            b"78XD" => HitLocation::_78XD,
-            b"8XD" => HitLocation::_8XD,
-            b"89XD" => HitLocation::_89XD,
-            b"5L" => HitLocation::_5L,
-            _ => unreachable!(std::str::from_utf8(&bytes).unwrap()),
+            "2F" => HitLocation::_2F,
+            "2" => HitLocation::_2,
+            "25F" => HitLocation::_25F,
+            "25" => HitLocation::_25,
+            "1S" => HitLocation::_1S,
+            "23" => HitLocation::_23,
+            "23F" => HitLocation::_23F,
+            "15" => HitLocation::_15,
+            "1" => HitLocation::_1,
+            "13" => HitLocation::_13,
+            "5S" => HitLocation::_5S,
+            "56S" => HitLocation::_56S,
+            "6S" => HitLocation::_6S,
+            "6MS" => HitLocation::_6MS,
+            "4MS" => HitLocation::_4MS,
+            "4S" => HitLocation::_4S,
+            "34S" => HitLocation::_34S,
+            "3S" => HitLocation::_3S,
+            "5F" => HitLocation::_5F,
+            "5" => HitLocation::_5,
+            "56" => HitLocation::_56,
+            "6" => HitLocation::_6,
+            "6M" => HitLocation::_6M,
+            "4M" => HitLocation::_4M,
+            "4" => HitLocation::_4,
+            "34" => HitLocation::_34,
+            "3" => HitLocation::_3,
+            "3F" => HitLocation::_3F,
+            "5DF" => HitLocation::_5DF,
+            "5D" => HitLocation::_5D,
+            "56D" => HitLocation::_56D,
+            "6D" => HitLocation::_6D,
+            "6MD" => HitLocation::_6MD,
+            "4MD" => HitLocation::_4MD,
+            "4D" => HitLocation::_4D,
+            "34D" => HitLocation::_34D,
+            "3D" => HitLocation::_3D,
+            "3DF" => HitLocation::_3DF,
+            "7LSF" => HitLocation::_7LSF,
+            "7LS" => HitLocation::_7LS,
+            "7S" => HitLocation::_7S,
+            "78S" => HitLocation::_78S,
+            "8S" => HitLocation::_8S,
+            "89S" => HitLocation::_89S,
+            "9S" => HitLocation::_9S,
+            "9LS" => HitLocation::_9LS,
+            "9LSF" => HitLocation::_9LSF,
+            "7LF" => HitLocation::_7LF,
+            "7L" => HitLocation::_7L,
+            "7" => HitLocation::_7,
+            "78" => HitLocation::_78,
+            "8" => HitLocation::_8,
+            "89" => HitLocation::_89,
+            "9" => HitLocation::_9,
+            "9L" => HitLocation::_9L,
+            "9LF" => HitLocation::_9LF,
+            "7LDF" => HitLocation::_7LDF,
+            "7LD" => HitLocation::_7LD,
+            "7D" => HitLocation::_7D,
+            "78D" => HitLocation::_78D,
+            "8D" => HitLocation::_8D,
+            "89D" => HitLocation::_89D,
+            "9D" => HitLocation::_9D,
+            "9LD" => HitLocation::_9LD,
+            "9LDF" => HitLocation::_9LDF,
+            "78XD" => HitLocation::_78XD,
+            "8XD" => HitLocation::_8XD,
+            "89XD" => HitLocation::_89XD,
+            "5L" => HitLocation::_5L,
+            _ => unreachable!(bytes),
         }
     }
 }
 
-#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+#[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
 /// A play event modifier.
 pub enum PlayModifier {
     /// A hit of some kind, possibly with a specific location.
@@ -750,10 +750,10 @@ pub enum DataEventType {
     EarnedRuns,
 }
 
-impl<'a> From<&'a [u8]> for DataEventType {
-    fn from(bytes: &'a [u8]) -> DataEventType {
+impl From<&str> for DataEventType {
+    fn from(bytes: &str) -> DataEventType {
         match bytes {
-            b"er" => DataEventType::EarnedRuns,
+            "er" => DataEventType::EarnedRuns,
             _ => unreachable!(),
         }
     }
@@ -864,54 +864,54 @@ mod tests {
 
     #[test]
     fn test_info_parse() {
-        assert_eq!(Info::VisitingTeam, (&b"visteam"[..]).into());
-        assert_eq!(Info::HomeTeam, (&b"hometeam"[..]).into());
-        assert_eq!(Info::Date, (&b"date"[..]).into());
-        assert_eq!(Info::Number, (&b"number"[..]).into());
-        assert_eq!(Info::Pitches, (&b"pitches"[..]).into());
-        assert_eq!(Info::UmpireHome, (&b"umphome"[..]).into());
-        assert_eq!(Info::Umpire1B, (&b"ump1b"[..]).into());
-        assert_eq!(Info::Umpire2B, (&b"ump2b"[..]).into());
-        assert_eq!(Info::Umpire3B, (&b"ump3b"[..]).into());
-        assert_eq!(Info::FieldCondition, (&b"fieldcond"[..]).into());
-        assert_eq!(Info::Precipitation, (&b"precip"[..]).into());
-        assert_eq!(Info::Sky, (&b"sky"[..]).into());
-        assert_eq!(Info::Temperature, (&b"temp"[..]).into());
-        assert_eq!(Info::WindDirection, (&b"winddir"[..]).into());
-        assert_eq!(Info::WindSpeed, (&b"windspeed"[..]).into());
-        assert_eq!(Info::GameLength, (&b"timeofgame"[..]).into());
-        assert_eq!(Info::Attendance, (&b"attendence"[..]).into());
-        assert_eq!(Info::WinningPitcher, (&b"wp"[..]).into());
-        assert_eq!(Info::LosingPitcher, (&b"lp"[..]).into());
-        assert_eq!(Info::SavePitcher, (&b"save"[..]).into());
-        assert_eq!(Info::GameWinningRBI, (&b"gwrbi"[..]).into());
-        assert_eq!(Info::EditTime, (&b"edittime"[..]).into());
-        assert_eq!(Info::ScoreMethod, (&b"howscored"[..]).into());
-        assert_eq!(Info::InputProgramVersion, (&b"inputprogvers"[..]).into());
-        assert_eq!(Info::Inputter, (&b"inputter"[..]).into());
-        assert_eq!(Info::InputTime, (&b"inputtime"[..]).into());
-        assert_eq!(Info::Scorer, (&b"scorer"[..]).into());
-        assert_eq!(Info::Translator, (&b"translator"[..]).into());
+        assert_eq!(Info::VisitingTeam, "visteam".into());
+        assert_eq!(Info::HomeTeam, "hometeam".into());
+        assert_eq!(Info::Date, "date".into());
+        assert_eq!(Info::Number, "number".into());
+        assert_eq!(Info::Pitches, "pitches".into());
+        assert_eq!(Info::UmpireHome, "umphome".into());
+        assert_eq!(Info::Umpire1B, "ump1b".into());
+        assert_eq!(Info::Umpire2B, "ump2b".into());
+        assert_eq!(Info::Umpire3B, "ump3b".into());
+        assert_eq!(Info::FieldCondition, "fieldcond".into());
+        assert_eq!(Info::Precipitation, "precip".into());
+        assert_eq!(Info::Sky, "sky".into());
+        assert_eq!(Info::Temperature, "temp".into());
+        assert_eq!(Info::WindDirection, "winddir".into());
+        assert_eq!(Info::WindSpeed, "windspeed".into());
+        assert_eq!(Info::GameLength, "timeofgame".into());
+        assert_eq!(Info::Attendance, "attendence".into());
+        assert_eq!(Info::WinningPitcher, "wp".into());
+        assert_eq!(Info::LosingPitcher, "lp".into());
+        assert_eq!(Info::SavePitcher, "save".into());
+        assert_eq!(Info::GameWinningRBI, "gwrbi".into());
+        assert_eq!(Info::EditTime, "edittime".into());
+        assert_eq!(Info::ScoreMethod, "howscored".into());
+        assert_eq!(Info::InputProgramVersion, "inputprogvers".into());
+        assert_eq!(Info::Inputter, "inputter".into());
+        assert_eq!(Info::InputTime, "inputtime".into());
+        assert_eq!(Info::Scorer, "scorer".into());
+        assert_eq!(Info::Translator, "translator".into());
 
-        assert_eq!(Info::Unknown, (&b"foobar"[..]).into());
-        assert_eq!(Info::Unknown, (&b"asdfasdf"[..]).into());
+        assert_eq!(Info::Unknown, "foobar".into());
+        assert_eq!(Info::Unknown, "asdfasdf".into());
     }
 
     #[test]
     fn test_data_event_parse() {
-        assert_eq!(DataEventType::EarnedRuns, (&b"er"[..]).into());
+        assert_eq!(DataEventType::EarnedRuns, "er".into());
     }
 
     #[test]
     #[should_panic]
     fn test_data_event_panic() {
-        let _: DataEventType = (&b"foo"[..]).into();
+        let _: DataEventType = ("foo").into();
     }
 
     #[test]
     #[should_panic]
     fn test_hit_location_panic() {
-        let _: HitLocation = (&b"foocmfadksl"[..]).into();
+        let _: HitLocation = "foocmfadksl".into();
     }
 
     #[test]

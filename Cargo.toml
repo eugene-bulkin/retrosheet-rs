@@ -1,6 +1,6 @@
 [package]
 name = "retrosheet"
-version = "0.2.2"
+version = "0.2.3"
 authors = ["Eugene Bulkin <eugene.bulkin2@gmail.com>"]
 
 description = "A Rust interface for reading Retrosheet data."
@@ -16,4 +16,4 @@ license = "MIT"
 travis-ci = { repository = "eugene-bulkin/retrosheet-rs" }
 
 [dependencies]
-nom = "2.2.1"
+nom = "5.0.1"

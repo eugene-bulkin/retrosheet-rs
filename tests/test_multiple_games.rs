@@ -11,16 +11,16 @@ fn test_game_file(file: &str) {
     let file_name = format!("{}/test_resources/{}", env!("CARGO_MANIFEST_DIR"), file);
     let mut file = File::open(file_name).unwrap();
 
-    let mut buf: Vec<u8> = vec![];
-    file.read_to_end(&mut buf).unwrap();
+    let mut buf: String = String::new();
+    file.read_to_string(&mut buf).unwrap();
 
     let result = parser.parse(&buf);
 
     match result {
         Ok(_) => {}
         Err(e) => match e {
-            ParserError::BytesRemaining(bytes) => {
-                let first_chunk: Vec<u8> = bytes.into_iter().take(50).collect();
+            ParserError::BytesRemaining(s) => {
+                let first_chunk: Vec<u8> = s.bytes().into_iter().take(50).collect();
                 assert!(
                     false,
                     "unfinished: {}...",
