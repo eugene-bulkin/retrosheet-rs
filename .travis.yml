@@ -6,13 +6,9 @@ script:
 rust:
   - stable
   - beta
-  - nightly
 install:
   - rustup component add clippy
 cache: cargo
-
-allow_failures:
-  - rust: nightly
 
 before_install:
   - sudo apt-get update
