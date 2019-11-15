@@ -7,7 +7,7 @@ rust:
   - stable
   - beta
   - nightly
-before_cache:
+install:
   - rustup component add clippy
 cache: cargo
 
